@@ -27,58 +27,55 @@
     };
 
     return (
-      <div className="bg-[#f9f7f4] min-h-screen py-12">
-        <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
-          <button 
+      <div className="bg-[#f9f7f4] min-h-screen py-8 flex items-center justify-center">
+        <div className="w-full max-w-md px-2 sm:px-6 lg:px-8">
+          <button
             onClick={() => navigate("/profile")}
-            className="mb-8 flex items-center gap-2 text-stone-600 hover:text-stone-800 font-medium transition-colors"
+            className="mb-6 flex items-center gap-2 text-stone-600 hover:text-stone-800 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Profile
           </button>
-
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-stone-100">
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-10 h-10 text-blue-600" />
+          <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
+            <div className="text-center mb-6 md:mb-8">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                <Lock className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
               </div>
-              <h1 className="text-3xl font-bold text-stone-800 mb-2">Change Password</h1>
-              <p className="text-stone-600">We'll send a reset link to your email</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-stone-900 mb-1 md:mb-2">Change Password</h1>
+              <p className="text-stone-600 text-sm md:text-base">We'll send a reset link to your email</p>
             </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-2 flex items-center gap-2">
                   <Mail className="w-4 h-4" />
                   Email Address
                 </label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  autoComplete="email"
                 />
               </div>
-
               {message && (
-                <div className={`p-4 rounded-xl text-sm font-medium ${message.includes('Error') ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+                <div className={`p-4 rounded-lg text-sm font-medium mt-2 ${message.includes('Error') ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
                   {message}
                 </div>
               )}
-
-              <div className="flex gap-4 pt-4">
-                <button 
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-4">
+                <button
                   type="button"
                   onClick={() => navigate("/profile")}
-                  className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-700 py-3 px-6 rounded-xl font-medium transition-all"
+                  className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-700 py-3 px-4 md:px-6 rounded-lg md:rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={sending}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-xl font-medium transition-all shadow-sm shadow-blue-600/20 hover:shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 md:px-6 rounded-lg md:rounded-xl font-medium transition-all shadow-sm shadow-blue-600/20 hover:shadow-md disabled:opacity-50 flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   <Send className="w-5 h-5" />
                   {sending ? 'Sending...' : 'Send Reset Link'}

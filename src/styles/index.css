@@ -1,3 +1,16 @@
 @import './fonts.css';
 @import './tailwind.css';
+@theme {
+  --color-primary: #2E7D32;
+  --color-primary-hover: #256428;
+
+  --color-soft: #66BB6A;
+  --color-mint: #A5D6A7;
+
+  --color-background: #F6FAF6;
+  --color-surface: #FFFFFF;
+  --color-border: #E2E8E2;
+
+  --color-text: #1F2A1F;
+}
 @import './theme.css';

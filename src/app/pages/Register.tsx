@@ -6,6 +6,9 @@ import { db } from "../../utils/firebase/config";
 import { mapFirebaseAuthError } from "../../utils/firebase/errormapper";
 import { ErrorModal } from "../components/ErrorModal";
 import { usePHPhone } from "../hooks/usePHPhone";
+import { Input } from "../components/ui/input";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
 export function Register() {
   const [formData, setFormData] = useState({
@@ -62,67 +65,66 @@ export function Register() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12 sm:p-6">
-      <h1 className="text-2xl font-bold mb-6">Register</h1>
+    <div className="min-h-screen bg-background text-foreground px-4 py-12 sm:p-6">
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">Register</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              type="email"
+              placeholder="Email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+            />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              type="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+            />
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className="w-full p-3 border rounded-lg"
-          required
-        />
+            <Input
+              type="text"
+              placeholder="Full Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          className="w-full p-3 border rounded-lg"
-          required
-        />
+            <Input
+              type="tel"
+              placeholder="09171234567 or +639171234567"
+              value={phone.value}
+              onChange={(e) => phone.onChange(e.target.value)}
+            />
 
-        <input
-          type="text"
-          placeholder="Full Name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="w-full p-3 border rounded-lg"
-          required
-        />
+            <textarea
+              placeholder="Address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              className="w-full min-h-[100px] rounded-xl border border-border bg-input-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring outline-none"
+            />
 
-        <input
-          type="tel"
-          placeholder="09171234567 or +639171234567"
-          value={phone.value}
-          onChange={(e) => phone.onChange(e.target.value)}
-          className="w-full p-3 border rounded-lg"
-        />
+            <ErrorModal message={error} onClose={() => setError("")} />
 
-        <textarea
-          placeholder="Address"
-          value={formData.address}
-          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-          className="w-full p-3 border rounded-lg"
-        />
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? 'Creating...' : 'Register'}
+            </Button>
+          </form>
 
-        <ErrorModal message={error} onClose={() => setError("")} />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-emerald-600 text-white py-3 rounded-lg"
-        >
-          {loading ? 'Creating...' : 'Register'}
-        </button>
-      </form>
-
-      <p className="mt-4 text-center">
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
+          <p className="mt-4 text-center text-muted-foreground">
+            Already have an account?{" "}
+            <Link to="/login" className="text-primary hover:underline">
+              Login
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

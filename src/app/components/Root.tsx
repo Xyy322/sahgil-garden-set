@@ -90,7 +90,7 @@ export function Root() {
 
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#f9f7f4] text-stone-800">
+    <div className="min-h-screen flex flex-col font-sans bg-stone-50 text-stone-900">
       {/* Header (Customer/General) */}
       {!isAdminDashboard && (
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm border-b border-stone-100">
@@ -101,8 +101,8 @@ export function Root() {
                 <div className="bg-emerald-600 p-2 rounded-lg shadow-sm group-hover:scale-105 transition-transform">
                   <Leaf className="w-6 h-6 text-white" aria-hidden="true" />
                 </div>
-                <span className="text-xl font-bold text-emerald-900 hidden sm:inline">Sahgil Garden Set</span>
-                <span className="text-lg font-bold text-emerald-900 sm:hidden">Sahgil</span>
+                <span className="text-xl font-bold text-stone-900 hidden sm:inline">Sahgil Garden Set</span>
+                <span className="text-lg font-bold text-stone-900 sm:hidden">Sahgil</span>
               </Link>
 
               {/* Desktop Nav */}
@@ -171,7 +171,7 @@ export function Root() {
       <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <SheetContent side="right" className="w-[280px] sm:w-[350px]">
           <SheetHeader>
-            <SheetTitle className="text-emerald-900">Menu</SheetTitle>
+            <SheetTitle className="text-stone-900">Menu</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-2 mt-6">
             {navLinks}
@@ -183,7 +183,7 @@ export function Root() {
       <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
         <SheetContent side="right" className="w-[320px] sm:w-[400px]">
           <SheetHeader>
-            <SheetTitle className="text-emerald-900">Your Cart</SheetTitle>
+            <SheetTitle className="text-stone-900">Your Cart</SheetTitle>
           </SheetHeader>
           <div className="mt-4 flex-1 overflow-y-auto">
             <Cart />
@@ -195,20 +195,20 @@ export function Root() {
       <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
         <SheetContent side="right" className="w-[280px] sm:w-[350px]">
           <SheetHeader>
-            <SheetTitle className="text-emerald-900">Account</SheetTitle>
+            <SheetTitle className="text-stone-900">Account</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 mt-6">
-            <Link to="/profile" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 text-stone-700">
+            <Link to="/profile" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-100 text-stone-600">
               <User className="w-5 h-5" />
               My Profile
             </Link>
             {role === "customer" && (
-              <Link to="/dashboard/customer" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 text-stone-700">
+              <Link to="/dashboard/customer" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-100 text-stone-600">
                 <Leaf className="w-5 h-5" />
                 Dashboard
               </Link>
             )}
-            <button onClick={handleLogout} className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 text-red-600 w-full text-left">
+            <button onClick={handleLogout} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-stone-100 text-stone-600 w-full text-left">
               <LogOut className="w-5 h-5" />
               Logout
             </button>

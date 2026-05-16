@@ -1,6 +1,9 @@
-- [x] Update `src/app/components/ui/button.tsx` to Full Garden Experience button styling (class-only)
-- [x] Update `src/app/components/ui/input.tsx` to warm garden input styling (class-only)
-- [x] Update `src/app/components/ui/card.tsx` to premium garden card styling (class-only)
-imize- [x] Update `src/app/components/AppointmentsManagement.tsx` to immersive garden-themed visual styling (class-only)
-- [x] Run quick build/type check for regression safety
-- [x] Mark all TODO steps complete
+- [ ] Update `src/app/components/ui/button.tsx` to semantic theme-token variants (primary/secondary/danger/link), remove hardcoded palette classes.
+- [ ] Update `src/app/components/ui/input.tsx` to semantic theme-token styling for border/background/text/focus/error.
+- [ ] Update `src/app/components/ui/card.tsx` to `bg-card border-border rounded-xl text-card-foreground`.
+- [ ] Refactor `src/app/pages/About.tsx` to use token-based page/card/text/button styling.
+- [ ] Refactor `src/app/pages/Services.tsx` to use token-based page/card/text/link styling.
+- [ ] Refactor `src/app/pages/ProfileEdit.tsx` to use shared `Input`/`Button` and token-based wrappers.
+- [ ] Refactor `src/app/pages/Register.tsx` to use shared `Input`/`Button`/`Card` and token-based wrappers.
+- [ ] Run build check (`npm run build`) and fix any styling/classname regressions.
+- [ ] Mark completed items in this TODO.
