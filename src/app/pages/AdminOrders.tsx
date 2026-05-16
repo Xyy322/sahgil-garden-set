@@ -20,7 +20,7 @@ interface OrderData {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
-  customerId?: string;
+  userId?: string;
   address?: string;
   items?: OrderItem[];
   itemSummary?: string;
@@ -154,9 +154,9 @@ export function AdminOrders() {
         updatedAt: new Date(),
       });
 
-      if (order.customerId && newStatus !== order.status) {
+      if (order.userId && newStatus !== order.status) {
         await createNotification({
-          userId: order.customerId,
+          userId: order.userId,
           title: "Order Update",
           message: `Your order is now ${newStatus}`,
           type: "order",

@@ -1,23 +1,32 @@
-// The Checkout page handles the order placement process for users.
-// It directly affects the system by creating new orders in the database and clearing the user's cart.
-// This file integrates with Firebase for authentication and Firestore for order storage.
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useCart, type CartItem } from "../components/CartContext";
 import { db } from "../../utils/firebase/config";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { Card } from "../components/ui/card";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import { AlertCircle, CheckCircle } from "lucide-react";
 
 export function Checkout() {
-  // Access cart items and clearCart function from context.
-  // This allows the checkout page to read the user's cart and clear it after a successful order.
   const { items, clearCart } = useCart();
   const navigate = useNavigate();
-  // Loading and error state for async order placement.
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form state for collecting shipping and payment details.
+  const [user, setUser] = useState<User | null>(null);
+
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -27,46 +36,43 @@ export function Checkout() {
     paymentMethod: "cash",
   });
 
-  // Calculate the total price of all items in the cart.
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const total = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
 
-  // Handles form submission and order placement.
-  // This function creates a new order in Firestore and clears the cart.
+  // ✅ FIXED AUTH HANDLING (stable for hosting builds)
+  useEffect(() => {
+    const auth = getAuth();
+
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+
+    return () => unsub();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (items.length === 0) {
       setError("Your cart is empty");
       return;
     }
+
+    if (!user) {
+      setError("Please log in to place an order");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      // Wait for authentication state to resolve.
-      const auth = getAuth();
-const user = auth.currentUser;
+      const orderData = {
+  userId: user.uid,
 
-if (!user) {
-  setError("Please log in to place an order");
-  setLoading(false);
-  return;
-}
-
-// Prepare order data for Firestore
-const orderData = {
-  customerId: user.uid, // ✅ REQUIRED
-  customerEmail: user.email,
-
-  customerName: form.fullName,
-  customerPhone: form.phone,
-
-  shippingAddress: {
-    street: form.address,
-    city: form.city,
-    postalCode: form.postalCode,
-  },
-
-  items: items.map((item: CartItem) => ({
+  items: items.map(item => ({
     id: item.id,
     name: item.name,
     price: item.price,
@@ -74,21 +80,31 @@ const orderData = {
     image: item.image,
   })),
 
+  shippingInfo: {
+    fullName: form.fullName,
+    phone: form.phone,
+    address: form.address,
+    city: form.city,
+    postalCode: form.postalCode,
+  },
+
   total,
-  status: "Pending",
+
   paymentMethod: form.paymentMethod,
+
+  status: "pending",
+
   createdAt: serverTimestamp(),
-  notes: "",
+  updatedAt: serverTimestamp(),
 };
 
-      // Add the order to Firestore.
       await addDoc(collection(db, "orders"), orderData);
-      // Clear the cart after successful order.
+
       clearCart();
-      // Redirect to customer dashboard.
       navigate("/dashboard/customer");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to place order";
+      const message =
+        err instanceof Error ? err.message : "Failed to place order";
       setError(message);
     } finally {
       setLoading(false);
@@ -97,151 +113,176 @@ const orderData = {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-[#f9f7f4] py-12 flex items-center justify-center">
-        <div className="max-w-md w-full mx-auto px-4 text-center bg-white rounded-2xl shadow-sm border border-stone-100 p-8">
-          <h1 className="text-2xl font-bold text-stone-900 mb-2">Checkout</h1>
+      <div className="min-h-screen py-12 px-4 flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md w-full">
+          <div className="mb-6 flex justify-center">
+            <div className="p-4 rounded-full bg-stone-100">
+              <AlertCircle className="w-8 h-8 text-stone-400" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-stone-900 mb-3">Checkout</h1>
           <p className="text-stone-600 mb-6">Your cart is empty.</p>
-          <button
+          <Button 
             onClick={() => navigate("/")}
-            className="w-full py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+            className="w-full"
           >
             Continue Shopping
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f9f7f4] py-8 md:py-12">
-      <div className="max-w-4xl mx-auto px-2 md:px-4">
-        <h1 className="text-3xl font-bold text-stone-900 mb-6 md:mb-8">Checkout</h1>
-        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-          {/* Order Summary */}
-          <div className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-stone-100 h-fit flex flex-col gap-4">
-            <h2 className="text-lg md:text-xl font-bold text-stone-800 mb-2">Order Summary</h2>
-            <ul className="divide-y divide-stone-100 mb-2">
-              {items.map((item) => (
-                <li key={item.id} className="py-3 flex justify-between items-center">
-                  <div className="min-w-0">
-                    <div className="font-medium text-stone-800 truncate">{item.name}</div>
-                    <div className="text-xs text-stone-500">Qty: {item.quantity}</div>
+    <div className="min-h-screen py-8 px-4 bg-stone-50">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-stone-900">Checkout</h1>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* ORDER SUMMARY */}
+          <div className="lg:col-span-1">
+            <Card className="p-6">
+              <h2 className="text-xl font-bold mb-4 text-stone-900">Order Summary</h2>
+              <div className="space-y-2 mb-4 max-h-96 overflow-y-auto">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-start text-sm border-b border-stone-100 pb-3 gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-stone-900 truncate">{item.name}</div>
+                      <div className="text-xs text-stone-500">Qty: {item.quantity}</div>
+                    </div>
+                    <span className="font-semibold text-stone-900 whitespace-nowrap">
+                      ₱{(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
-                  <div className="font-semibold text-stone-900">₱{item.price * item.quantity}</div>
-                </li>
-              ))}
-            </ul>
-            <div className="border-t border-stone-100 pt-4 flex justify-between items-center">
-              <span className="text-base font-bold">Total</span>
-              <span className="text-xl font-bold text-emerald-600">₱{total}</span>
-            </div>
+                ))}
+              </div>
+
+              <div className="border-t border-stone-200 pt-4">
+                <div className="flex justify-between items-center text-lg">
+                  <span className="font-bold text-stone-900">Total:</span>
+                  <span className="font-bold text-emerald-600 text-xl">
+                    ₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </Card>
           </div>
-          {/* Shipping Form */}
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-stone-100 flex flex-col gap-4">
-            <h2 className="text-lg md:text-xl font-bold text-stone-800 mb-2">Shipping Information</h2>
-            {error && (
-              <div className="mb-2 p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>
-            )}
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={form.fullName}
-                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="John Doe"
-                  autoComplete="name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  required
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="09xx xxx xxxx"
-                  autoComplete="tel"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Address</label>
-                <input
-                  type="text"
-                  required
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="123 Main St"
-                  autoComplete="street-address"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          {/* CHECKOUT FORM */}
+          <div className="lg:col-span-2">
+            <Card className="p-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {error && (
+                  <Alert className="bg-red-50 border-red-200">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-900">
+                      {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">City</label>
-                  <input
-                    type="text"
+                  <h3 className="text-lg font-semibold mb-4 text-stone-900">Shipping Information</h3>
+                </div>
+
+                <div>
+                  <Label htmlFor="fullname">Full Name</Label>
+                  <Input
+                    id="fullname"
+                    placeholder="John Doe"
+                    value={form.fullName}
+                    onChange={(e) =>
+                      setForm({ ...form, fullName: e.target.value })
+                    }
                     required
-                    value={form.city}
-                    onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="City"
-                    autoComplete="address-level2"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">Postal Code</label>
-                  <input
-                    type="text"
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    placeholder="09XX XXXX XXX"
+                    value={form.phone}
+                    onChange={(e) =>
+                      setForm({ ...form, phone: e.target.value })
+                    }
                     required
-                    value={form.postalCode}
-                    onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-                    className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="Postal Code"
-                    autoComplete="postal-code"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Payment Method</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="cash"
-                      checked={form.paymentMethod === "cash"}
-                      onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
-                      className="text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span className="text-stone-700">Cash on Delivery</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="card"
-                      checked={form.paymentMethod === "card"}
-                      onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
-                      className="text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span className="text-stone-700">Card Payment</span>
-                  </label>
+
+                <div>
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    placeholder="Street address"
+                    value={form.address}
+                    onChange={(e) =>
+                      setForm({ ...form, address: e.target.value })
+                    }
+                    required
+                  />
                 </div>
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-emerald-600 text-white rounded-lg font-bold text-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-                aria-busy={loading}
-              >
-                {loading ? 'Placing Order...' : `Place Order - ₱${total}`}
-              </button>
-            </div>
-          </form>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      placeholder="Manila"
+                      value={form.city}
+                      onChange={(e) =>
+                        setForm({ ...form, city: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="postalcode">Postal Code</Label>
+                    <Input
+                      id="postalcode"
+                      placeholder="1000"
+                      value={form.postalCode}
+                      onChange={(e) =>
+                        setForm({ ...form, postalCode: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-stone-900">Payment Method</h3>
+                  <div>
+                    <Label htmlFor="payment">Select Payment Method</Label>
+                    <Select value={form.paymentMethod} onValueChange={(value) =>
+                      setForm({ ...form, paymentMethod: value })
+                    }>
+                      <SelectTrigger id="payment">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash on Delivery</SelectItem>
+                        <SelectItem value="card">Card Payment</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 text-base"
+                >
+                  {loading ? "Placing Order..." : "Place Order"}
+                </Button>
+              </form>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

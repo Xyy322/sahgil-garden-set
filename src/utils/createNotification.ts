@@ -1,10 +1,7 @@
 import { db } from "./firebase/config";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
-export type NotificationType =
-  | "order"
-  | "appointment"
-  | "inquiry";
+export type NotificationType = "order" | "appointment" | "inquiry";
 
 interface CreateNotificationParams {
   userId: string;
@@ -26,11 +23,10 @@ export const createNotification = async ({
     title,
     message,
     type,
-    statusRefId,
-
-    // IMPORTANT
-    read: false,
-
+    relatedId: statusRefId,
+    relatedCollection: type === "order" ? "orders" : "appointments",
+    isRead: false,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 };

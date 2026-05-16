@@ -142,7 +142,7 @@ export function CustomerDashboard() {
         const appointmentsRef = collection(db, "appointments");
         const q = query(
           appointmentsRef,
-          where("customerId", "==", user.uid)
+          where("userId", "==", user.uid)
         );
         const querySnapshot = await getDocs(q);
         const fetchedAppointments: Appointment[] = [];
@@ -156,7 +156,7 @@ export function CustomerDashboard() {
         
         // Sort by appointmentDate (newest first)
         fetchedAppointments.sort((a, b) => {
-          return new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime();
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
         });
         
         setAppointments(fetchedAppointments);
@@ -390,7 +390,7 @@ export function CustomerDashboard() {
                 <div className="space-y-4">
                   {appointments.map((apt) => {
                     const isExpanded = expandedAppointment === apt.id;
-                    const appointmentDate = new Date(apt.appointmentDate + "T00:00:00Z");
+                    const date = new Date(apt.date + "T00:00:00Z");
                     const statusColors = {
                       pending: "bg-amber-50 text-amber-700 border-amber-200",
                       approved: "bg-blue-50 text-blue-700 border-blue-200",
@@ -413,7 +413,7 @@ export function CustomerDashboard() {
                               <div>
                                 <h3 className="font-bold text-stone-800">Landscaping Consultation</h3>
                                 <p className="text-sm text-stone-500 mt-1">
-                                  {formatDisplayDate(apt.appointmentDate)} at {formatTime(apt.appointmentTime)}
+                                  {formatDisplayDate(apt.date)} at {formatTime(apt.time)}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -447,11 +447,11 @@ export function CustomerDashboard() {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-stone-600">Date:</span>
-                                    <span className="font-medium text-stone-800">{formatDisplayDate(apt.appointmentDate)}</span>
+                                    <span className="font-medium text-stone-800">{formatDisplayDate(apt.date)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-stone-600">Time:</span>
-                                    <span className="font-medium text-stone-800">{formatTime(apt.appointmentTime)}</span>
+                                    <span className="font-medium text-stone-800">{formatTime(apt.time)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-stone-600">Type:</span>

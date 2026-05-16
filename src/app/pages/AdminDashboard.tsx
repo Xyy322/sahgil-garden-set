@@ -38,7 +38,7 @@ interface OrderData {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
-  customerId?: string;
+  userId?: string;
   address?: string;
   items?: OrderItem[];
   itemSummary?: string;
@@ -273,9 +273,9 @@ export function AdminDashboard() {
         updatedAt: new Date(),
       });
 
-      if (order.customerId) {
+      if (order.userId) {
         await createNotification({
-          userId: order.customerId,
+          userId: order.userId,
           title: "Order status updated",
           message: `Your order ${order.orderNumber || order.id} is now ${newStatus}.`,
           type: "order",

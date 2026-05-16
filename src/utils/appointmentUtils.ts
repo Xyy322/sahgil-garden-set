@@ -1,46 +1,40 @@
-// appointmentUtils provides utility functions and types for managing landscaping appointments.
-// FIXED: Fully timezone-safe (NO UTC usage anywhere)
-
-import { addDays, isBefore, endOfDay } from "date-fns";
+import { addDays } from "date-fns";
 
 /**
- * Appointment interface defines the structure of an appointment record.
+ * Appointment interface
  */
 export interface Appointment {
   id: string;
-  customerId: string;
+  userId: string;
+
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  appointmentDate: string; // YYYY-MM-DD (STRICT LOCAL DATE STRING)
-  appointmentTime: string; // HH:mm
+
+  date: string;
+  time: string;
+
   serviceType: "landscaping-consultation";
   description: string;
+
   status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+
+  createdAt: any;
+  updatedAt: any;
 }
 
 /**
  * TIME SLOTS
  */
 export const TIME_SLOTS = [
-  "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
-  "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
+  "09:00", "10:00", "11:00", "12:00", "13:00",
+  "14:00", "15:00", "16:00", "17:00", "18:00",
+  "19:00", "20:00", "21:00",
 ];
 
-export const OPERATING_HOURS = {
-  start: 9,
-  end: 22
-};
-
-//
-// ============================
-// SAFE DATE HELPERS (CORE FIX)
-// ============================
-//
-
+/**
+ * FORMAT DATE → YYYY-MM-DD (LOCAL SAFE)
+ */
 export function formatDateKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -48,58 +42,62 @@ export function formatDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * PARSE YYYY-MM-DD → LOCAL DATE (SAFE, NO UTC SHIFT)
+ */
 export function parseDateKey(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
-//
-// ============================
-// BLOCKING LOGIC
-// ============================
-//
-
-export function getBlockedDates(appointmentDate: Date): string[] {
+/**
+ * BLOCKED DATES (selected day + next 2 days)
+ */
+export function getBlockedDates(baseDate: Date): string[] {
   const blocked: string[] = [];
 
-  // selected day + next 2 days
   for (let i = 0; i <= 2; i++) {
-    const date = addDays(appointmentDate, i);
-    blocked.push(formatDateKey(date));
+    const d = addDays(baseDate, i);
+    blocked.push(formatDateKey(d));
   }
 
   return blocked;
 }
 
+/**
+ * ALL BLOCKED FROM APPOINTMENTS
+ */
 export function getAllBlockedDates(appointments: Appointment[]): string[] {
   const blocked = new Set<string>();
 
   appointments
-    .filter(a => a.status === "approved" || a.status === "pending")
-    .forEach(a => {
-      const date = parseDateKey(a.appointmentDate);
-      getBlockedDates(date).forEach(d => blocked.add(d));
+    .filter((a) => a.status === "approved" || a.status === "pending")
+    .forEach((a) => {
+      const base = parseDateKey(a.date);
+      getBlockedDates(base).forEach((d) => blocked.add(d));
     });
 
   return Array.from(blocked);
 }
 
-//
-// ============================
-// AVAILABILITY LOGIC
-// ============================
-//
-
+/**
+ * DATE AVAILABILITY CHECK
+ */
 export function isDateAvailable(date: Date, blockedDates: string[]): boolean {
-  const dateStr = formatDateKey(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  if (isBefore(endOfDay(date), new Date())) {
-    return false;
-  }
+  const compare = new Date(date);
+  compare.setHours(0, 0, 0, 0);
 
-  return !blockedDates.includes(dateStr);
+  if (compare < today) return false;
+
+  return !blockedDates.includes(formatDateKey(date));
 }
 
+/**
+ * SLOT AVAILABILITY CHECK
+ */
 export function isTimeSlotAvailable(
   date: Date,
   time: string,
@@ -108,13 +106,16 @@ export function isTimeSlotAvailable(
   const dateStr = formatDateKey(date);
 
   return !appointments.some(
-    a =>
-      a.appointmentDate === dateStr &&
-      a.appointmentTime === time &&
+    (a) =>
+      a.date === dateStr &&
+      a.time === time &&
       (a.status === "approved" || a.status === "pending")
   );
 }
 
+/**
+ * VALIDATION
+ */
 export function validateAppointment(
   date: Date,
   time: string,
@@ -123,40 +124,49 @@ export function validateAppointment(
 ): { valid: boolean; message: string } {
   const dateStr = formatDateKey(date);
 
-  if (isBefore(endOfDay(date), new Date())) {
-    return { valid: false, message: "Cannot book appointments in the past" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const compare = new Date(date);
+  compare.setHours(0, 0, 0, 0);
+
+  if (compare < today) {
+    return { valid: false, message: "Cannot book past dates" };
   }
 
   if (blockedDates.includes(dateStr)) {
     return {
       valid: false,
-      message: "This date is unavailable due to existing appointment"
+      message: "This date is unavailable",
     };
   }
 
   if (!isTimeSlotAvailable(date, time, appointments)) {
-    return { valid: false, message: "This time slot is already booked" };
+    return {
+      valid: false,
+      message: "This time slot is already booked",
+    };
   }
 
-  return { valid: true, message: "Appointment available" };
+  return { valid: true, message: "Available" };
 }
 
-//
-// ============================
-// DISPLAY HELPERS
-// ============================
-//
-
+/**
+ * FORMAT TIME → 12H
+ */
 export function formatTime(time: string): string {
-  const [hours, minutes] = time.split(":");
-  const hour = parseInt(hours);
+  const [h, m] = time.split(":");
+  const hour = Number(h);
 
   const ampm = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  const display = hour % 12 || 12;
 
-  return `${displayHour}:${minutes} ${ampm}`;
+  return `${display}:${m} ${ampm}`;
 }
 
+/**
+ * DISPLAY DATE
+ */
 export function formatDisplayDate(dateStr: string): string {
   const date = parseDateKey(dateStr);
 
@@ -164,6 +174,21 @@ export function formatDisplayDate(dateStr: string): string {
     weekday: "long",
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
   });
+}
+
+/**
+ * SORT HELPERS
+ */
+export function compareAppointmentsByDate(
+  a: Appointment,
+  b: Appointment
+) {
+  const diff =
+    parseDateKey(a.date).getTime() - parseDateKey(b.date).getTime();
+
+  if (diff !== 0) return diff;
+
+  return a.time.localeCompare(b.time);
 }

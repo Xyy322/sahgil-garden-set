@@ -11,10 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 
-export type NotificationType =
-  | "order"
-  | "appointment"
-  | "inquiry";
+export type NotificationType = "order" | "appointment" | "inquiry";
 
 export interface AppNotification {
   id: string;
@@ -24,7 +21,7 @@ export interface AppNotification {
   type: NotificationType;
   statusRefId: string;
   read: boolean;
-  createdAt?: Timestamp;
+  createdAt?: Timestamp | string | null;
 }
 
 export function useNotifications(userId: string | null) {
@@ -49,19 +46,28 @@ export function useNotifications(userId: string | null) {
       q,
       (snapshot) => {
         const mapped = snapshot.docs
-  .map((d) => {
-    const data = d.data() as Omit<AppNotification, "id">;
+          .map((d) => {
+            const data = d.data() as any;
 
-    return {
-      id: d.id,
-      ...data,
-      read: data.read ?? false, // single source of truth
-    } as AppNotification;
-  })
+            return {
+              id: d.id,
+              ...data,
+              read: data.read === true, // strict boolean normalization
+            } as AppNotification;
+          })
           .sort((a, b) => {
-            const aMs = a.createdAt?.toMillis?.() ?? 0;
-            const bMs = b.createdAt?.toMillis?.() ?? 0;
-            return bMs - aMs;
+            const getTime = (value: any): number => {
+              if (!value) return 0;
+
+              if (value instanceof Timestamp) {
+                return value.toMillis();
+              }
+
+              const parsed = new Date(value).getTime();
+              return isNaN(parsed) ? 0 : parsed;
+            };
+
+            return getTime(b.createdAt) - getTime(a.createdAt);
           });
 
         setNotifications(mapped);
@@ -92,8 +98,11 @@ export function useNotifications(userId: string | null) {
     if (!unread.length) return;
 
     const batch = writeBatch(db);
+
     unread.forEach((item) => {
-      batch.update(doc(db, "notifications", item.id), { read: true });
+      batch.update(doc(db, "notifications", item.id), {
+        read: true,
+      });
     });
 
     await batch.commit();

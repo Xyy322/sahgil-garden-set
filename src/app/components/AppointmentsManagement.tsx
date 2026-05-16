@@ -15,6 +15,7 @@ import {
 import { Check, X, Clock, User, Mail, Phone } from "lucide-react";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
+import { compareAppointmentsByDate } from "../../utils/appointmentUtils";
 
 // AppointmentStatus defines the possible states for an appointment.
 type AppointmentStatus = "pending" | "approved" | "rejected" | "completed" | "cancelled";
@@ -57,9 +58,7 @@ export function AppointmentsManagement() {
         })) as Appointment[];
 
         // Sort appointments by date for easier management.
-        apts.sort(
-          (a, b) => new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime()
-        );
+        apts.sort(compareAppointmentsByDate);
 
         setAppointments(apts);
         setLoading(false);
@@ -88,11 +87,11 @@ export function AppointmentsManagement() {
         updatedAt: new Date().toISOString(),
       });
 
-      if (appointment.customerId) {
+      if (appointment.userId) {
         await createNotification({
-          userId: appointment.customerId,
+          userId: appointment.userId,
           title: "Appointment updated",
-          message: `Your appointment (${appointment.appointmentDate} ${appointment.appointmentTime}) is now ${newStatus}.`,
+          message: `Your appointment (${appointment.date} ${appointment.time}) is now ${newStatus}.`,
           type: "appointment",
           statusRefId: id,
         });
@@ -199,10 +198,10 @@ export function AppointmentsManagement() {
                       </div>
                       <div>
                         <p className="font-semibold text-[#1F4D2E]">
-                          {formatDisplayDate(apt.appointmentDate)}
+                          {formatDisplayDate(apt.date)}
                         </p>
                         <p className="text-sm text-[#2F6B3F]">
-                          {formatTime(apt.appointmentTime)}
+                          {formatTime(apt.time)}
                         </p>
                       </div>
                     </div>
@@ -290,7 +289,7 @@ export function AppointmentsManagement() {
   Blocked dates (selected date + next 2 days):
 </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {getBlockedDates(parseDateKey(apt.appointmentDate)).map(
+                      {getBlockedDates(parseDateKey(apt.date)).map(
                         (date: string) => (
                           <span
                             key={date}
