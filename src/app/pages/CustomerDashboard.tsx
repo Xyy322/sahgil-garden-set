@@ -86,16 +86,16 @@ export function CustomerDashboard() {
   // Fetch orders from Firestore for the logged-in user.
   // This keeps the dashboard up to date with the user's order history.
   useEffect(() => {
-    if (!user?.email) return;
+    if (!user?.uid) return;
 
-    const fetchOrders = async () => {
-      try {
-        const ordersRef = collection(db, "orders");
-        // Query orders by customer email. (No orderBy to avoid Firestore index requirements.)
-        const q = query(
-          ordersRef,
-          where("customerEmail", "==", user.email)
-        );
+    // REPLACE WITH:
+const fetchOrders = async () => {
+  try {
+    const ordersRef = collection(db, "orders");
+    const q = query(
+      ordersRef,
+      where("userId", "==", user.uid)
+    );
         const querySnapshot = await getDocs(q);
         const fetchedOrders: Order[] = [];
         querySnapshot.forEach((doc) => {

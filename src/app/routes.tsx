@@ -72,17 +72,22 @@ export const router = createBrowserRouter([
       },
 
       // ✅ ADMIN (FIXED — no route-level guard anymore)
-      {
-        path: "dashboard/admin",
-        element: <AdminLayout />,
-        children: [
-          { index: true, element: <AdminDashboard /> },
-          { path: "products", element: <AdminProducts /> },
-          { path: "orders", element: <AdminOrders /> },
-          { path: "appointments", element: <AdminAppointments /> },
-          { path: "inquiries", element: <AdminInquiries /> },
-        ],
-      },
+      // AFTER (the fix):
+{
+  path: "dashboard/admin",
+  element: (
+    <RoleProtectedRoute allowedRoles={["admin"]}>
+      <AdminLayout />
+    </RoleProtectedRoute>
+  ),
+  children: [
+    { index: true, element: <AdminDashboard /> },
+    { path: "products", element: <AdminProducts /> },
+    { path: "orders", element: <AdminOrders /> },
+    { path: "appointments", element: <AdminAppointments /> },
+    { path: "inquiries", element: <AdminInquiries /> },
+  ],
+},
 
       { path: "*", Component: NotFound },
     ],

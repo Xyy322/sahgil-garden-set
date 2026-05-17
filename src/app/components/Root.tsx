@@ -11,7 +11,16 @@ import {
 import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 import { useCart } from "./CartContext";
@@ -28,6 +37,7 @@ export function Root() {
 
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [role, setRole] = useState<"admin" | "customer" | null>(null);
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
   const { items } = useCart();
   const navigate = useNavigate();
@@ -69,13 +79,12 @@ export function Root() {
   }, [navigate, location.pathname]);
 
   const handleLogout = async () => {
-  const confirmLogout = window.confirm("Are you sure you want to log out?");
-  if (!confirmLogout) return;
-
   const auth = getAuth();
   await signOut(auth);
   setUser(null);
   setIsProfileOpen(false);
+  setIsMenuOpen(false);
+  setIsLogoutDialogOpen(false);
   navigate("/");
 };
 
@@ -98,7 +107,7 @@ export function Root() {
   <img
     src={logo}
     alt="Sahgil Garden Set"
-    className="h-10 w-auto object-contain"
+    className="h-20  w-auto object-contain"
   />
   <span className="text-lg font-semibold leading-none tracking-tight">
     Sahgil Garden Set
@@ -222,11 +231,11 @@ export function Root() {
 
             {user ? (
               <button
-                onClick={handleLogout}
-                className="mt-4 bg-red-600 text-white py-2 rounded-full"
-              >
-                Logout
-              </button>
+  onClick={() => setIsLogoutDialogOpen(true)}
+  className="mt-4 bg-red-600 text-white py-2 rounded-full"
+>
+  Logout
+</button>
             ) : (
               <Link
                 onClick={() => setIsMenuOpen(false)}
@@ -268,9 +277,9 @@ export function Root() {
               </Link>
             )}
 
-            <button onClick={handleLogout} className="text-left text-red-600">
-              Logout
-            </button>
+            <button onClick={() => setIsLogoutDialogOpen(true)} className="text-left text-red-600">
+  Logout
+</button>
           </div>
         </SheetContent>
       </Sheet>
@@ -299,6 +308,26 @@ export function Root() {
           </div>
         </footer>
       )}
+      {/* LOGOUT CONFIRMATION DIALOG */}
+<AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Log out?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to log out of your account?
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleLogout}
+        className="bg-red-600 hover:bg-red-700 text-white"
+      >
+        Log out
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
     </div>
   );
 }

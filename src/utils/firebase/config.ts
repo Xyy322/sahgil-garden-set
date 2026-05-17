@@ -5,13 +5,13 @@ import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCCiuqNP0b3Gg2DZO40DfG6F4wol-PPUOA",
-  authDomain: "sahgil-garden-system.firebaseapp.com",
-  databaseURL: "https://sahgil-garden-system-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "sahgil-garden-system",
-  storageBucket: "sahgil-garden-system.firebasestorage.app",
-  messagingSenderId: "106742551297",
-  appId: "1:106742551297:web:4790229b45bd7433e50100"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 // Initialize Firebase (singleton pattern to prevent duplicate app error)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
