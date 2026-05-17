@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Bell } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../hooks/useNotifications";
 import { Button } from "../ui/button";
 

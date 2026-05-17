@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter } from "react-router-dom";
 import { Root } from "./components/Root";
 import { Home } from "./pages/Home";
 import { About } from "./pages/About";
@@ -20,76 +20,99 @@ import { ProfileEdit } from "./pages/ProfileEdit";
 import { PasswordChange } from "./pages/PasswordChange";
 import { RoleProtectedRoute } from "./components/RoleProtectedRoute";
 import { AdminLayout } from "./components/AdminLayout";
-
+import { CustomerInquiries } from "./pages/CustomerInquiries";
 export const router = createBrowserRouter([
   {
-    path: "/",
-    Component: Root,
-    children: [
-      { index: true, Component: Home },
-      { path: "about", Component: About },
-      { path: "services", Component: Services },
-      { path: "contact", Component: Contact },
-      { path: "login", Component: Login },
-      { path: "register", Component: Register },
-      { path: "checkout", Component: Checkout },
-      { path: "landscaping/booking", Component: LandscapingBooking },
+  path: "/",
+  element: <Root />,
+  children: [
+    { index: true, element: <Home /> },
+    { path: "about", element: <About /> },
+    { path: "services", element: <Services /> },
+    { path: "contact", element: <Contact /> },
+    { path: "login", element: <Login /> },
+    { path: "register", element: <Register /> },
 
-      {
-        path: "dashboard/customer",
-        element: (
-          <RoleProtectedRoute allowedRoles={["customer"]}>
-            <CustomerDashboard />
-          </RoleProtectedRoute>
-        ),
-      },
+    {
+      path: "checkout",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <Checkout />
+        </RoleProtectedRoute>
+      ),
+    },
 
-      {
-        path: "profile",
-        element: (
-          <RoleProtectedRoute allowedRoles={["customer"]}>
-            <Profile />
-          </RoleProtectedRoute>
-        ),
-      },
+    {
+      path: "landscaping/booking",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <LandscapingBooking />
+        </RoleProtectedRoute>
+      ),
+    },
 
-      {
-        path: "profile/edit",
-        element: (
-          <RoleProtectedRoute allowedRoles={["customer"]}>
-            <ProfileEdit />
-          </RoleProtectedRoute>
-        ),
-      },
+    {
+      path: "dashboard/customer",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <CustomerDashboard />
+        </RoleProtectedRoute>
+      ),
+    },
 
-      {
-        path: "profile/password",
-        element: (
-          <RoleProtectedRoute allowedRoles={["customer"]}>
-            <PasswordChange />
-          </RoleProtectedRoute>
-        ),
-      },
+    {
+      path: "profile",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <Profile />
+        </RoleProtectedRoute>
+      ),
+    },
 
-      // ✅ ADMIN (FIXED — no route-level guard anymore)
-      // AFTER (the fix):
+    {
+      path: "profile/edit",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <ProfileEdit />
+        </RoleProtectedRoute>
+      ),
+    },
+
+    {
+      path: "profile/password",
+      element: (
+        <RoleProtectedRoute allowedRoles={["customer"]}>
+          <PasswordChange />
+        </RoleProtectedRoute>
+      ),
+    },
+
 {
-  path: "dashboard/admin",
+  path: "inquiries",
   element: (
-    <RoleProtectedRoute allowedRoles={["admin"]}>
-      <AdminLayout />
+    <RoleProtectedRoute allowedRoles={["customer"]}>
+      <CustomerInquiries />
     </RoleProtectedRoute>
   ),
-  children: [
-    { index: true, element: <AdminDashboard /> },
-    { path: "products", element: <AdminProducts /> },
-    { path: "orders", element: <AdminOrders /> },
-    { path: "appointments", element: <AdminAppointments /> },
-    { path: "inquiries", element: <AdminInquiries /> },
-  ],
 },
 
-      { path: "*", Component: NotFound },
-    ],
-  },
+    {
+      path: "dashboard/admin",
+      element: (
+        <RoleProtectedRoute allowedRoles={["admin"]}>
+          <AdminLayout />
+        </RoleProtectedRoute>
+      ),
+      children: [
+        { index: true, element: <AdminDashboard /> },
+        { path: "products", element: <AdminProducts /> },
+        { path: "orders", element: <AdminOrders /> },
+        { path: "appointments", element: <AdminAppointments /> },
+        { path: "inquiries", element: <AdminInquiries /> },
+      ],
+    },
+
+    { path: "*", element: <NotFound /> },
+  ],
+}
 ]);

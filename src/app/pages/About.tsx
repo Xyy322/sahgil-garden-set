@@ -1,5 +1,5 @@
 // Import navigation, image, and icon components for use in the About page.
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";

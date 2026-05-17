@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Calendar } from "../components/ui/calendar";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -189,15 +189,40 @@ export function LandscapingBooking() {
 
   if (loading) return <p>Loading...</p>;
 
-  if (step === "success") {
-    return (
-      <div className="p-10 text-center">
-        <CheckCircle className="mx-auto" />
-        <h1>Appointment Created</h1>
-        <Button onClick={() => navigate("/")}>Home</Button>
+ if (step === "success") {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
+        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-emerald-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-stone-900 mb-2">Appointment Booked!</h1>
+        <p className="text-stone-500 mb-2">Your landscaping consultation has been submitted.</p>
+        <p className="text-sm text-stone-400 mb-8">We will confirm your appointment within 24 hours.</p>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => navigate("/dashboard/customer")}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
+          >
+            Go to Dashboard
+          </button>
+          <button
+            onClick={() => {
+              setStep("booking");
+              setSelectedDate(undefined);
+              setSelectedTime("");
+              setFormData({ fullName: "", phone: "", description: "" });
+            }}
+            className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
+          >
+            Book Another Appointment
+          </button>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen py-8 px-4">

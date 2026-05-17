@@ -3,7 +3,7 @@
 // This file integrates with Firebase for real-time data and authentication, and uses several utility and UI components.
 import { Package, Calendar, Clock, MapPin, Search, ChevronDown, ChevronUp, Truck, CheckCircle, Package as PackageIcon, CreditCard, AlertCircle, Leaf } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { db } from "../../utils/firebase/config";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
@@ -13,15 +13,25 @@ import { Appointment, formatTime, formatDisplayDate } from "../../utils/appointm
 import { ChatBubble } from "../components/chat/ChatBubble";
 import { Timestamp } from "firebase/firestore";
 import { createNotification } from "../../utils/createNotification";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 // Order type defines the structure of an order for display and management.
 type Order = {
   id: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  shippingAddress: {
-    street: string;
+  userId: string;
+  shippingInfo: {
+    fullName: string;
+    phone: string;
+    address: string;
     city: string;
     postalCode: string;
   };
@@ -58,17 +68,24 @@ export function CustomerDashboard() {
   // Access addItem to allow reordering or cart actions from dashboard.
   const { addItem } = useCart();
   const navigate = useNavigate();
+
   // User state for authentication and personalization.
   const [user, setUser] = useState<User | null>(null);
+
   // Orders and appointments state for display.
   const [orders, setOrders] = useState<Order[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+
   // Loading states for async data.
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+
   // UI state for expanded/collapsed order and appointment details.
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [expandedAppointment, setExpandedAppointment] = useState<string | null>(null);
+
+  // Cancel appointment dialog state.
+  const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(null);
 
   // On mount, check authentication and redirect if not logged in.
   useEffect(() => {
@@ -84,28 +101,24 @@ export function CustomerDashboard() {
   }, [navigate]);
 
   // Fetch orders from Firestore for the logged-in user.
-  // This keeps the dashboard up to date with the user's order history.
   useEffect(() => {
     if (!user?.uid) return;
 
-    // REPLACE WITH:
-const fetchOrders = async () => {
-  try {
-    const ordersRef = collection(db, "orders");
-    const q = query(
-      ordersRef,
-      where("userId", "==", user.uid)
-    );
+    const fetchOrders = async () => {
+      try {
+        const ordersRef = collection(db, "orders");
+        const q = query(
+          ordersRef,
+          where("userId", "==", user.uid)
+        );
         const querySnapshot = await getDocs(q);
         const fetchedOrders: Order[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           fetchedOrders.push({
             id: doc.id,
-            customerName: data.customerName || '',
-            customerEmail: data.customerEmail || '',
-            customerPhone: data.customerPhone || '',
-            shippingAddress: data.shippingAddress || { street: '', city: '', postalCode: '' },
+            userId: data.userId || '',
+            shippingInfo: data.shippingInfo || { fullName: '', phone: '', address: '', city: '', postalCode: '' },
             total: data.total || 0,
             status: data.status || 'Pending',
             paymentMethod: data.paymentMethod || 'Cash on Delivery',
@@ -113,7 +126,7 @@ const fetchOrders = async () => {
             createdAt: data.createdAt,
           } as Order);
         });
-        
+
         // Sort by createdAt on client side (newest first)
         fetchedOrders.sort((a, b) => {
           if (a.createdAt?.toDate && b.createdAt?.toDate) {
@@ -121,7 +134,7 @@ const fetchOrders = async () => {
           }
           return 0;
         });
-        
+
         setOrders(fetchedOrders);
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -131,9 +144,9 @@ const fetchOrders = async () => {
     };
 
     fetchOrders();
-  }, [user?.email]);
+  }, [user?.uid]);
 
-  // Fetch appointments from Firestore
+  // Fetch appointments from Firestore for the logged-in user.
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -153,25 +166,47 @@ const fetchOrders = async () => {
             ...data,
           } as Appointment);
         });
-        
-        // Sort by appointmentDate (newest first)
+
+        // Sort by date (newest first)
         fetchedAppointments.sort((a, b) => {
           return new Date(b.date).getTime() - new Date(a.date).getTime();
         });
-        
-        setAppointments(fetchedAppointments);
-        } catch (error) {
-          console.error("Error fetching appointments:", error);
-        } finally {
-          setLoadingAppointments(false);
-        }
-      };
 
+        setAppointments(fetchedAppointments);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    };
 
     fetchAppointments();
   }, [user?.uid]);
 
-  const userName = user?.email ? user.email.split('@')[0] : 'Jane';
+  // Handle confirmed appointment cancellation.
+  const handleConfirmCancel = async () => {
+    if (!cancelAppointmentId) return;
+
+    await updateDoc(doc(db, "appointments", cancelAppointmentId), {
+      status: "cancelled",
+      updatedAt: Timestamp.now(),
+    });
+
+    if (user?.uid) {
+      await createNotification({
+        userId: user.uid,
+        title: "Appointment Update",
+        message: "Your appointment has been cancelled.",
+        type: "appointment",
+        statusRefId: cancelAppointmentId,
+      });
+    }
+
+    setCancelAppointmentId(null);
+    setExpandedAppointment(null);
+  };
+
+  const userName = user?.email ? user.email.split('@')[0] : 'Guest';
 
   return (
     <div className="bg-[#f9f7f4] min-h-screen py-12 relative z-0">
@@ -186,27 +221,30 @@ const fetchOrders = async () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
+
+            {/* ORDERS SECTION */}
             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
                   <Package className="w-5 h-5 text-emerald-600" />
                   Recent Furniture Orders
                 </h2>
-                <a href="#" className="text-sm font-medium text-emerald-600 hover:text-emerald-700">View All</a>
               </div>
 
               <div className="space-y-5">
                 {loadingOrders ? (
                   <div className="text-center py-8 text-stone-500">Loading orders...</div>
                 ) : orders.length === 0 ? (
-                  <div className="text-center py-8 text-stone-500">No orders yet. Start shopping to see your orders here!</div>
+                  <div className="text-center py-8 text-stone-500">
+                    No orders yet. Start shopping to see your orders here!
+                  </div>
                 ) : (
                   orders.slice(0, 5).map((order) => {
                     const currentStep = getStatusStep(order.status || 'Pending');
                     const isExpanded = expandedOrder === order.id;
                     return (
                       <div key={order.id} className="rounded-2xl border border-stone-100 bg-white overflow-hidden transition-shadow hover:shadow-md">
-                        {/* Order Header - Always Visible */}
+                        {/* Order Header */}
                         <button
                           type="button"
                           className="flex flex-col sm:flex-row gap-4 p-4 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer hover:bg-stone-50 transition-colors"
@@ -224,9 +262,13 @@ const fetchOrders = async () => {
                           <div className="flex-grow flex flex-col justify-between">
                             <div className="flex justify-between items-start gap-2">
                               <div>
-                                <h3 className="font-bold text-stone-800">{order.items[0]?.name || 'Order'}{order.items.length > 1 && ` +${order.items.length - 1} more`}</h3>
+                                <h3 className="font-bold text-stone-800">
+                                  {order.items[0]?.name || 'Order'}
+                                  {order.items.length > 1 && ` +${order.items.length - 1} more`}
+                                </h3>
                                 <p className="text-sm text-stone-500 mt-1">
-                                  Order #{order.id.slice(0, 8).toUpperCase()} • {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : 'Recently'}
+                                  Order #{order.id.slice(0, 8).toUpperCase()} •{" "}
+                                  {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : 'Recently'}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -239,19 +281,26 @@ const fetchOrders = async () => {
                                 }`}>
                                   {order.status || 'Pending'}
                                 </span>
-                                {isExpanded ? <ChevronUp className="w-5 h-5 text-stone-400" /> : <ChevronDown className="w-5 h-5 text-stone-400" /> }
+                                {isExpanded
+                                  ? <ChevronUp className="w-5 h-5 text-stone-400" />
+                                  : <ChevronDown className="w-5 h-5 text-stone-400" />
+                                }
                               </div>
                             </div>
                             <div className="flex justify-between items-end mt-4 sm:mt-0">
-                              <span className="font-bold text-stone-800">₱{order.total?.toFixed(2) || '0.00'}</span>
-                              <span className="text-sm text-stone-500">{order.items.length} item{order.items.length > 1 ? 's' : ''}</span>
+                              <span className="font-bold text-stone-800">
+                                ₱{order.total?.toLocaleString('en-PH', { minimumFractionDigits: 2 }) || '0.00'}
+                              </span>
+                              <span className="text-sm text-stone-500">
+                                {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                              </span>
                             </div>
                           </div>
                         </button>
 
                         {/* Expanded Order Details */}
                         {isExpanded && (
-                          <div id={`order-details-${order.id}`} className="border-t border-stone-100 p-4 bg-stone-50 animate-fade-in">
+                          <div id={`order-details-${order.id}`} className="border-t border-stone-100 p-4 bg-stone-50">
                             {/* Order Tracking Progress */}
                             <div className="mb-6">
                               <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
@@ -266,7 +315,6 @@ const fetchOrders = async () => {
                                     const isCurrent = index === currentStep;
                                     return (
                                       <div key={step.key} className="flex flex-col items-center flex-1 relative">
-                                        {/* Connector Line */}
                                         {index > 0 && (
                                           <div className={`absolute top-4 sm:top-5 -left-1/2 w-full h-0.5 ${index <= currentStep ? 'bg-emerald-500' : 'bg-stone-200'}`} />
                                         )}
@@ -287,20 +335,17 @@ const fetchOrders = async () => {
 
                             {/* Order Details Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Shipping Address */}
                               <div className="bg-white p-4 rounded-xl">
                                 <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
                                   <MapPin className="w-4 h-4" />
                                   Shipping Address
                                 </h4>
                                 <p className="text-sm text-stone-600">
-                                  {order.customerName}<br />
-                                  {order.shippingAddress?.street}<br />
-                                  {order.shippingAddress?.city}, {order.shippingAddress?.postalCode}
-                                </p>
+  {order.shippingInfo?.fullName}<br />
+  {order.shippingInfo?.address}<br />
+  {order.shippingInfo?.city}, {order.shippingInfo?.postalCode}
+</p>
                               </div>
-
-                              {/* Payment Method */}
                               <div className="bg-white p-4 rounded-xl">
                                 <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
                                   <CreditCard className="w-4 h-4" />
@@ -328,7 +373,9 @@ const fetchOrders = async () => {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                      <span className="font-medium">₱{(item.price * item.quantity).toFixed(2)}</span>
+                                      <span className="font-medium">
+                                        ₱{(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                      </span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -344,7 +391,7 @@ const fetchOrders = async () => {
                               </div>
                               <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center">
                                 <span className="font-bold text-stone-800">Total</span>
-                                <span className="font-bold text-lg text-emerald-600">${order.total?.toFixed(2)}</span>
+                                <span className="font-bold text-lg text-emerald-600">₱{order.total?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
                               </div>
                             </div>
                           </div>
@@ -356,13 +403,14 @@ const fetchOrders = async () => {
               </div>
             </div>
 
+            {/* APPOINTMENTS SECTION */}
             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-emerald-600" />
                   Landscaping Appointments
                 </h2>
-                <button 
+                <button
                   onClick={() => navigate("/landscaping/booking")}
                   className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
                 >
@@ -379,7 +427,7 @@ const fetchOrders = async () => {
                   <p className="text-stone-600 text-sm mb-4">
                     Book your landscaping consultation to get started
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate("/landscaping/booking")}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
                   >
@@ -390,7 +438,6 @@ const fetchOrders = async () => {
                 <div className="space-y-4">
                   {appointments.map((apt) => {
                     const isExpanded = expandedAppointment === apt.id;
-                    const date = new Date(apt.date + "T00:00:00Z");
                     const statusColors = {
                       pending: "bg-amber-50 text-amber-700 border-amber-200",
                       approved: "bg-blue-50 text-blue-700 border-blue-200",
@@ -398,10 +445,10 @@ const fetchOrders = async () => {
                       rejected: "bg-red-50 text-red-700 border-red-200",
                       cancelled: "bg-stone-100 text-stone-700 border-stone-200",
                     };
-                    
+
                     return (
                       <div key={apt.id} className="rounded-2xl border border-stone-100 overflow-hidden">
-                        <div 
+                        <div
                           className="flex flex-col sm:flex-row gap-4 p-4 cursor-pointer hover:bg-stone-50 transition-colors"
                           onClick={() => setExpandedAppointment(isExpanded ? null : apt.id)}
                         >
@@ -422,13 +469,16 @@ const fetchOrders = async () => {
                                 }`}>
                                   {apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
                                 </span>
-                                {isExpanded ? <ChevronUp className="w-5 h-5 text-stone-400" /> : <ChevronDown className="w-5 h-5 text-stone-400" /> }
+                                {isExpanded
+                                  ? <ChevronUp className="w-5 h-5 text-stone-400" />
+                                  : <ChevronDown className="w-5 h-5 text-stone-400" />
+                                }
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Expanded Details */}
+                        {/* Expanded Appointment Details */}
                         {isExpanded && (
                           <div className="border-t border-stone-100 p-4 bg-stone-50">
                             {apt.status === "pending" && (
@@ -483,34 +533,17 @@ const fetchOrders = async () => {
                               </div>
                             )}
 
+                            {/* Cancel Button — now opens dialog instead of confirm() */}
                             <div className="mt-4 flex gap-2">
                               {apt.status === "pending" && (
-                                <button 
-                                  onClick={async (e) => {
+                                <button
+                                  onClick={(e) => {
                                     e.stopPropagation();
-                                    if (apt.status === "cancelled") return;
-                                    if (confirm('Are you sure you want to cancel this appointment? This action cannot be undone.')) {
-                                      await updateDoc(doc(db, 'appointments', apt.id), {
-                                        status: 'cancelled',
-                                        updatedAt: Timestamp.now()
-                                      });
-
-                                      if (user?.uid) {
-                                        await createNotification({
-                                          userId: user.uid,
-                                          title: "Appointment Update",
-                                          message: "Your appointment is now cancelled",
-                                          type: "appointment",
-                                          statusRefId: apt.id,
-                                        });
-                                      }
-
-                                      setExpandedAppointment(null);
-                                    }
+                                    setCancelAppointmentId(apt.id);
                                   }}
                                   className="flex-1 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors"
                                 >
-                                  Cancel
+                                  Cancel Appointment
                                 </button>
                               )}
                             </div>
@@ -524,6 +557,7 @@ const fetchOrders = async () => {
             </div>
           </div>
 
+          {/* SIDEBAR */}
           <div className="space-y-8">
             <Cart />
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-stone-100">
@@ -547,16 +581,25 @@ const fetchOrders = async () => {
                 </div>
               </div>
             </div>
+
             <div className="bg-stone-900 rounded-3xl p-6 text-white relative overflow-hidden">
               <div className="relative z-10">
                 <h3 className="font-bold text-lg mb-2">Need Help?</h3>
                 <p className="text-stone-400 text-sm mb-4">Have questions about an order or your upcoming appointment?</p>
-                <button
-                  className="w-full py-2.5 bg-white text-stone-900 rounded-xl font-bold hover:bg-stone-100 transition-colors shadow-sm"
-                  onClick={() => navigate("/contact")}
-                >
-                  Contact Support
-                </button>
+                <div className="flex flex-col gap-2">
+  <button
+    className="w-full py-2.5 bg-white text-stone-900 rounded-xl font-bold hover:bg-stone-100 transition-colors shadow-sm"
+    onClick={() => navigate("/contact")}
+  >
+    Contact Support
+  </button>
+  <button
+    className="w-full py-2.5 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 transition-colors shadow-sm"
+    onClick={() => navigate("/inquiries")}
+  >
+    My Inquiries
+  </button>
+</div>
               </div>
               <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-1/4 translate-y-1/4">
                 <Search className="w-32 h-32" />
@@ -565,7 +608,31 @@ const fetchOrders = async () => {
           </div>
         </div>
       </div>
+
+      {/* CANCEL APPOINTMENT DIALOG */}
+      <AlertDialog
+        open={!!cancelAppointmentId}
+        onOpenChange={(open) => { if (!open) setCancelAppointmentId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Appointment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this appointment? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCancel}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Yes, Cancel It
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
-

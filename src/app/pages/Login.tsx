@@ -2,7 +2,7 @@
 // It directly affects the system by determining user access and redirecting to the correct dashboard.
 // This file integrates with Firebase Auth and Firestore for user profile resolution.
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { db } from "../../utils/firebase/config";
 import { doc, getDoc } from "firebase/firestore";

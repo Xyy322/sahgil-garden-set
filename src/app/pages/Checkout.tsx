@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useCart, type CartItem } from "../components/CartContext";
 import { db } from "../../utils/firebase/config";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -21,12 +21,11 @@ import { AlertCircle, CheckCircle } from "lucide-react";
 export function Checkout() {
   const { items, clearCart } = useCart();
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const [orderId, setOrderId] = useState("");
+  const [orderSuccess, setOrderSuccess] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -98,10 +97,11 @@ export function Checkout() {
   updatedAt: serverTimestamp(),
 };
 
-      await addDoc(collection(db, "orders"), orderData);
+      const docRef = await addDoc(collection(db, "orders"), orderData);
 
-      clearCart();
-      navigate("/dashboard/customer");
+clearCart();
+setOrderId(docRef.id);
+setOrderSuccess(true);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to place order";
@@ -110,6 +110,66 @@ export function Checkout() {
       setLoading(false);
     }
   };
+
+if (orderSuccess) {
+  return (
+    <div className="min-h-screen py-12 px-4 flex items-center justify-center bg-stone-50">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
+        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-emerald-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-stone-900 mb-2">Order Placed!</h1>
+        <p className="text-stone-500 mb-2">Thank you for your order.</p>
+        <p className="text-xs text-stone-400 font-mono bg-stone-50 rounded-lg px-4 py-2 mb-8 border border-stone-100">
+          Order ID: {orderId.slice(0, 8).toUpperCase()}
+        </p>
+
+        <div className="bg-stone-50 rounded-2xl p-4 mb-8 text-left border border-stone-100">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Order Summary</p>
+          <div className="space-y-2">
+            {form.fullName && (
+              <div className="flex justify-between text-sm">
+                <span className="text-stone-500">Delivering to</span>
+                <span className="font-medium text-stone-800">{form.fullName}</span>
+              </div>
+            )}
+            {form.city && (
+              <div className="flex justify-between text-sm">
+                <span className="text-stone-500">City</span>
+                <span className="font-medium text-stone-800">{form.city}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-stone-500">Payment</span>
+              <span className="font-medium text-stone-800 capitalize">{form.paymentMethod === "cash" ? "Cash on Delivery" : "Card Payment"}</span>
+            </div>
+            <div className="flex justify-between text-sm border-t border-stone-200 pt-2 mt-2">
+              <span className="font-semibold text-stone-800">Total Paid</span>
+              <span className="font-bold text-emerald-600">
+                ₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => navigate("/dashboard/customer")}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
+          >
+            View My Orders
+          </button>
+          <button
+            onClick={() => navigate("/services")}
+            className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
+          >
+            Continue Shopping
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
   if (items.length === 0) {
     return (

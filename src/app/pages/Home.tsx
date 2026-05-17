@@ -1,5 +1,5 @@
 // Import navigation, icons, and image component
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle, Leaf, Palette, Armchair, ShieldCheck, Clock, Award, Star, Quote } from "lucide-react";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 

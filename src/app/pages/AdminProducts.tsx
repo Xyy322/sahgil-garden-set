@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import {
   collection,
   doc,
@@ -34,6 +34,7 @@ export function AdminProducts() {
 
   // ✅ NEW: image file state
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [formError, setFormError] = useState("");
 
   const [newProduct, setNewProduct] = useState<Omit<Product, "id">>({
     name: "",
@@ -83,10 +84,11 @@ export function AdminProducts() {
   const addProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!newProduct.name || newProduct.price <= 0) {
-      alert("Please fill in all fields correctly");
-      return;
-    }
+   if (!newProduct.name || newProduct.price <= 0) {
+  setFormError("Please fill in the product name and a valid price.");
+  return;
+}
+setFormError("");
 
     try {
       let imageUrl = newProduct.imageUrl;
@@ -184,6 +186,7 @@ export function AdminProducts() {
                   customizable: false,
                   status: "available",
                 });
+                setFormError("");
               }}
               className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold shadow hover:bg-emerald-700 transition-colors"
             >
@@ -277,6 +280,13 @@ export function AdminProducts() {
                 )}
               </div>
               <div className="md:col-span-2 flex gap-4 pt-2">
+
+                {formError && (
+  <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+    {formError}
+  </div>
+)}
+
                 <button
                   type="submit"
                   className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-semibold shadow hover:bg-emerald-700 transition-colors"

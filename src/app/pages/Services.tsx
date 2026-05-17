@@ -7,7 +7,7 @@ import {
   Leaf,
   Armchair,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../components/CartContext";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -60,26 +60,46 @@ export function Services() {
     return () => unsub();
   }, []);
 
-  const handleAddToCart = (product: Product) => {
-    const user = getAuth().currentUser;
+  const [loginPrompt, setLoginPrompt] = useState(false);
 
-    if (!user) {
-      alert("Please log in first to add items to your cart.");
-      navigate("/login", { state: { from: "/services" } });
-      return;
-    }
+const handleAddToCart = (product: Product) => {
+  const user = getAuth().currentUser;
 
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.imageUrl,
-      quantity: 1,
-    });
-  };
+  if (!user) {
+    setLoginPrompt(true);
+    return;
+  }
+
+  addItem({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    image: product.imageUrl,
+    quantity: 1,
+  });
+};
 
   return (
     <div className="bg-[#f9f7f4] min-h-screen">
+
+      {loginPrompt && (
+  <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-4 animate-fade-in">
+    <span className="text-sm font-medium">Please log in to add items to your cart.</span>
+    <button
+      onClick={() => { setLoginPrompt(false); navigate("/login", { state: { from: "/services" } }); }}
+      className="text-emerald-400 font-bold text-sm hover:text-emerald-300"
+    >
+      Log in
+    </button>
+    <button
+      onClick={() => setLoginPrompt(false)}
+      className="text-stone-400 hover:text-white text-sm"
+    >
+      ✕
+    </button>
+  </div>
+)}
+
       {/* Hero */}
       <section className="relative w-full h-[65vh] min-h-[500px] bg-stone-900 flex items-center justify-center text-center">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-stone-900 to-emerald-900/30" />

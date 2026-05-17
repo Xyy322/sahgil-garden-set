@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation, Outlet } from "react-router";
+import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { getAuth, signOut } from "firebase/auth";
 import {
   LayoutDashboard,

@@ -1,5 +1,5 @@
   import { useState } from "react";
-  import { useNavigate } from "react-router";
+  import { useNavigate } from "react-router-dom";
   import { getAuth, sendPasswordResetEmail } from "firebase/auth";
   import { Lock, Mail, ArrowLeft, Send } from "lucide-react";
   import { mapFirebaseAuthError } from "../../utils/firebase/errormapper";

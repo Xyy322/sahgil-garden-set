@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import {
   PackageSearch,
@@ -227,39 +227,42 @@ export function AdminDashboard() {
   }, [orders]);
 
   const appointmentsByDay = useMemo(() => {
-    const grouped = new Map<
-      string,
-      { label: string; appointments: number; timestamp: number }
-    >();
+  const grouped = new Map<string, { label: string; appointments: number; timestamp: number }>();
 
-    appointments.forEach((appointment) => {
-      const rawDate = (appointment as any).date;
-      const date = rawDate instanceof Date ? rawDate : null;
+  appointments.forEach((appointment) => {
+    const rawDate = (appointment as any).date;
 
-      if (!date) return;
+let date: Date | null = null;
+if (typeof rawDate === "string" && rawDate.length >= 10) {
+  date = new Date(rawDate + "T00:00:00");
+} else if (rawDate instanceof Date) {
+  date = rawDate;
+}
 
-      const isoDate = date.toISOString().slice(0, 10);
-      const label = date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-      const existing = grouped.get(isoDate);
+    if (!date || isNaN(date.getTime())) return;
 
-      if (existing) {
-        existing.appointments += 1;
-      } else {
-        grouped.set(isoDate, {
-          label,
-          appointments: 1,
-          timestamp: date.getTime(),
-        });
-      }
+    const isoDate = date.toISOString().slice(0, 10);
+    const label = date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
     });
+    const existing = grouped.get(isoDate);
 
-    return Array.from(grouped.values())
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map(({ label, appointments }) => ({ date: label, appointments }));
-  }, [appointments]);
+    if (existing) {
+      existing.appointments += 1;
+    } else {
+      grouped.set(isoDate, {
+        label,
+        appointments: 1,
+        timestamp: date.getTime(),
+      });
+    }
+  });
+
+  return Array.from(grouped.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(({ label, appointments }) => ({ date: label, appointments }));
+}, [appointments]);
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {

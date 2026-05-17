@@ -1,7 +1,7 @@
 // Cart displays the user's current shopping cart and allows item removal, clearing, and checkout navigation.
 // It directly affects the system by enabling users to manage their cart contents and proceed to checkout.
 // This file integrates with CartContext for state and uses React Router for navigation.
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useCart } from "./CartContext";
 
 export function Cart() {

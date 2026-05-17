@@ -7,7 +7,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { useInquiryChat } from '../../hooks/useInquiryChat';
 import { MessageBubble } from './MessageBubble';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatWindowProps {
   userEmail: string | null;

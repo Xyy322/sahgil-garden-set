@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, onSnapshot, orderBy, query, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
-import { Filter, MoreVertical } from "lucide-react";
+import { Filter } from "lucide-react";
 
 type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
 
@@ -29,6 +29,14 @@ interface OrderData {
   notes?: string;
   paymentMethod?: string;
   createdAt?: Timestamp | Date | null;
+  // ADD inside the OrderData interface:
+shippingInfo?: {
+  fullName?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+};
 }
 
 const STATUS_OPTIONS: OrderStatus[] = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
@@ -183,14 +191,23 @@ export function AdminOrders() {
     <div className="space-y-8">
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-card-foreground">Recent Orders</h2>
-            <p className="text-sm text-muted-foreground">Review and update customer order lifecycle statuses.</p>
           </div>
-          <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-            <Filter className="h-4 w-4" /> Live
-          </button>
-        </div>
+          <div>
+  <h2 className="text-2xl md:text-3xl font-bold text-card-foreground">Recent Orders</h2>
+  <p className="text-sm text-muted-foreground">Review and update customer order lifecycle statuses.</p>
+</div>
+<div className="flex items-center gap-2">
+  <input
+    type="text"
+    placeholder="Search orders..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+  />
+  <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent">
+    <Filter className="h-4 w-4" /> Live
+  </button>
+</div>
 
         {ordersError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 font-medium">
@@ -231,16 +248,16 @@ export function AdminOrders() {
                 <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
                   <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-1">
                     <p className="mb-1 font-semibold text-card-foreground">Order Details</p>
-                    <p><span className="text-muted-foreground">Item Summary:</span> <span className="text-foreground">{order.itemSummary || "N/A"}</span></p>
+                    <p><span className="text-muted-foreground">Items:</span> <span className="text-foreground">{order.items && order.items.length > 0 ? order.items.map(i => `${i.name} x${i.quantity}`).join(', ') : "N/A"}</span></p>
                     <p><span className="text-muted-foreground">Total:</span> <span className="text-foreground">{formatMoney(order.total)}</span></p>
                     <p><span className="text-muted-foreground">Payment:</span> <span className="text-foreground">{order.paymentMethod || "N/A"}</span></p>
                     <p><span className="text-muted-foreground">Created:</span> <span className="text-foreground">{formatDate(order.createdAt)}</span></p>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-1">
                     <p className="mb-1 font-semibold text-card-foreground">Customer Details</p>
-                    <p><span className="text-muted-foreground">Phone:</span> <span className="text-foreground">{order.customerPhone || "N/A"}</span></p>
-                    <p><span className="text-muted-foreground">Address:</span> <span className="text-foreground">{order.address || "N/A"}</span></p>
-                    <p><span className="text-muted-foreground">Notes:</span> <span className="text-foreground">{order.notes || "N/A"}</span></p>
+                    <p><span className="text-muted-foreground">Name:</span> <span className="text-foreground">{order.shippingInfo?.fullName || order.customerName || "N/A"}</span></p>
+<p><span className="text-muted-foreground">Phone:</span> <span className="text-foreground">{order.shippingInfo?.phone || order.customerPhone || "N/A"}</span></p>
+<p><span className="text-muted-foreground">Address:</span> <span className="text-foreground">{order.shippingInfo?.address ? `${order.shippingInfo.address}, ${order.shippingInfo.city} ${order.shippingInfo.postalCode}` : order.address || "N/A"}</span></p>
                   </div>
                 </div>
 
@@ -271,10 +288,13 @@ export function AdminOrders() {
                 )}
 
                 <div className="flex justify-end border-t border-border pt-3 mt-2">
-                  <button className="text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="More actions">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                </div>
+  <span className="text-xs text-muted-foreground">
+    {order.createdAt instanceof Object && 'toDate' in order.createdAt
+      ? order.createdAt.toDate().toLocaleDateString()
+      : 'N/A'}
+  </span>
+</div>
+
               </div>
             ))}
           </div>
