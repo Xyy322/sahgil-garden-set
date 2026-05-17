@@ -74,11 +74,16 @@ export function Contact() {
   return (
     <div className="bg-[#f9f7f4] min-h-screen">
       {/* HERO */}
-      <section className="relative h-[320px] md:h-[420px] bg-stone-900 overflow-hidden flex items-center justify-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-stone-900 to-emerald-900/30"></div>
-        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center text-white px-4">
-          <h1 className="text-3xl md:text-5xl font-bold mb-4 md:mb-6">Get In Touch</h1>
-          <p className="text-lg md:text-xl max-w-2xl">Let's talk about your vision.</p>
+      <section className="relative w-full h-[65vh] min-h-[500px] bg-stone-900 flex items-center justify-center text-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-stone-900 to-emerald-900/30" />
+
+        <div className="relative z-10 text-white px-4">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4">
+            Get In Touch
+          </h1>
+          <p className="text-lg md:text-xl text-stone-200">
+            Let's talk about your vision.
+          </p>
         </div>
       </section>
       <div className="max-w-5xl mx-auto px-2 md:px-4 py-12 md:py-20 grid lg:grid-cols-2 gap-10 md:gap-16">

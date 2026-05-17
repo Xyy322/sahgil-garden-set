@@ -7,17 +7,16 @@ import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 export function Home() {
   return (
     <div className="flex flex-col w-full">
-      {/* Hero Section: Large banner with background image, title, and call-to-action buttons */}
-      <section className="relative w-full h-[600px] md:h-[700px] lg:h-[800px] bg-stone-900 overflow-hidden">
-        {/* Background image with overlay */}
+
+      {/* HERO (LARGE - ONLY ONE IN SYSTEM) */}
+      <section className="relative w-full h-[85vh] min-h-[700px] bg-stone-900 overflow-hidden">
         <div className="absolute inset-0">
-          <ImageWithFallback 
-            src="https://images.unsplash.com/photo-1766852092602-3d5791b1e028?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiZWF1dGlmdWwlMjBnYXJkZW4lMjBmdXJuaXR1cmV8ZW58MXx8fHwxNzcyNzMxNDI5fDA&ixlib=rb-4.1.0&q=80&w=1920&utm_source=figma&utm_medium=referral" 
-            alt="Beautiful garden furniture set" 
+          <ImageWithFallback
+            src="https://images.unsplash.com/photo-1766852092602-3d5791b1e028"
+            alt="Garden furniture"
             className="w-full h-full object-cover opacity-60 mix-blend-overlay"
           />
-          {/* Gradient overlay for better text visibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/40 to-transparent" />
         </div>
         
         {/* Hero content: Title, subtitle, and action buttons */}
