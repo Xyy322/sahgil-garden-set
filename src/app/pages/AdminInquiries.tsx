@@ -84,7 +84,6 @@ function normalizeInquiry(id: string, data: any): Inquiry {
         ? data.inquiryType
         : "General Inquiry",
     status,
-    messages: Array.isArray(data.messages) ? data.messages : [],
     createdAt: data.createdAt ?? null,
     updatedAt: data.updatedAt ?? null,
   } as Inquiry;

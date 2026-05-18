@@ -14,6 +14,32 @@ import { useAuth } from "../context/AuthContext";
 
 type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
 
+function normalizeOrderStatus(status: unknown): OrderStatus {
+  if (typeof status !== "string") return "Pending";
+
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "pending") return "Pending";
+  if (normalized === "processing") return "Processing";
+  if (normalized === "shipped") return "Shipped";
+  if (normalized === "delivered") return "Delivered";
+  if (normalized === "cancelled" || normalized === "canceled") return "Cancelled";
+
+  return "Pending";
+}
+
+function normalizePaymentMethod(method: unknown): string {
+  if (typeof method !== "string") return "Cash on Delivery";
+
+  const normalized = method.trim().toLowerCase();
+
+  if (normalized === "cash" || normalized === "cod" || normalized === "cash on delivery") {
+    return "Cash on Delivery";
+  }
+
+  return method;
+} 
+
 interface OrderItem {
   name?: string;
   quantity?: number;
@@ -126,10 +152,12 @@ export function AdminOrders() {
           const data = d.data() as Omit<OrderData, "id">;
 
           return {
-            id: d.id,
-            ...data,
-            items: normalizeItems(data.items),
-          };
+  id: d.id,
+  ...data,
+  status: normalizeOrderStatus(data.status),
+  paymentMethod: normalizePaymentMethod(data.paymentMethod),
+  items: normalizeItems(data.items),
+};
         });
 
         mapped.sort((a, b) => {

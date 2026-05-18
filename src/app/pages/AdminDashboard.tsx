@@ -38,6 +38,20 @@ type OrderStatus =
   | "Delivered"
   | "Cancelled";
 
+function normalizeOrderStatus(status: unknown): OrderStatus {
+  if (typeof status !== "string") return "Pending";
+
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "pending") return "Pending";
+  if (normalized === "processing") return "Processing";
+  if (normalized === "shipped") return "Shipped";
+  if (normalized === "delivered") return "Delivered";
+  if (normalized === "cancelled" || normalized === "canceled") return "Cancelled";
+
+  return "Pending";
+}
+
 interface OrderItem {
   name?: string;
   quantity?: number;
@@ -158,10 +172,11 @@ export function AdminDashboard() {
             const data = document.data() as Omit<OrderData, "id">;
 
             return {
-              id: document.id,
-              ...data,
-              items: normalizeItems(data.items),
-            };
+  id: document.id,
+  ...data,
+  status: normalizeOrderStatus(data.status),
+  items: normalizeItems(data.items),
+};
           });
 
           mapped.sort(
