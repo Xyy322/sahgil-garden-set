@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import {
   PackageSearch,
   CalendarCheck,
@@ -11,20 +9,34 @@ import {
   collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
   updateDoc,
   Timestamp,
-  getDoc,
+  serverTimestamp,
 } from "firebase/firestore";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Bar,
+  BarChart,
+} from "recharts";
+
+import { useAuth } from "../context/AuthContext";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
-import type { Product } from "../../types/product";
-import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis, Bar, BarChart } from "recharts";
 import { ChartContainer, ChartTooltipContent } from "../components/ui/chart";
-import { Appointment } from "../../utils/appointmentUtils";
+import type { Appointment } from "../../utils/appointmentUtils";
 
-type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
+type OrderStatus =
+  | "Pending"
+  | "Processing"
+  | "Shipped"
+  | "Delivered"
+  | "Cancelled";
 
 interface OrderItem {
   name?: string;
@@ -46,143 +58,225 @@ interface OrderData {
   status?: OrderStatus;
   notes?: string;
   paymentMethod?: string;
-  createdAt?: Timestamp | Date | null;
+  createdAt?: Timestamp | Date | string | null;
 }
 
 function normalizeItems(raw: unknown): OrderItem[] {
   if (Array.isArray(raw)) return raw;
+
   if (raw && typeof raw === "object") {
     const values = Object.values(raw as Record<string, unknown>);
+
     if (values.every((v) => typeof v === "object" && v !== null)) {
       return values as OrderItem[];
     }
   }
+
   return [];
 }
 
+function getTimestampMillis(value: unknown): number {
+  if (!value) return 0;
+
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof (value as any)?.toMillis === "function") {
+    return (value as any).toMillis();
+  }
+
+  if (typeof (value as any)?.toDate === "function") {
+    return (value as any).toDate().getTime();
+  }
+
+  const parsed = new Date(value as string).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function normalizeAppointment(id: string, data: any): Appointment {
+  return {
+    id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+    date: typeof data.date === "string" ? data.date : "",
+    time: typeof data.time === "string" ? data.time : "",
+    status:
+      data.status === "pending" ||
+      data.status === "approved" ||
+      data.status === "rejected" ||
+      data.status === "completed" ||
+      data.status === "cancelled"
+        ? data.status
+        : "pending",
+  } as Appointment;
+}
+
 export function AdminDashboard() {
-  const navigate = useNavigate();
+  const { user, role, loading: authLoading } = useAuth();
 
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [ordersError, setOrdersError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderData[]>([]);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [appointmentsError, setAppointmentsError] = useState("");
 
-  const [role, setRole] = useState<"admin" | null>(null);
-
   useEffect(() => {
-    const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        setRole(userDoc.data().role as "admin");
-      }
-    });
-    return () => unsub();
-  }, [navigate]);
+    if (authLoading) {
+      return;
+    }
 
-  useEffect(() => {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(
+    if (!user) {
+      setOrders([]);
+      setOrdersError("You must be logged in as admin to view orders.");
+      setLoadingOrders(false);
+      return;
+    }
+
+    if (role !== "admin") {
+      setOrders([]);
+      setOrdersError("Only administrators can view orders.");
+      setLoadingOrders(false);
+      return;
+    }
+
+    setLoadingOrders(true);
+    setOrdersError("");
+
+    const q = query(collection(db, "orders"));
+
+    const unsubscribe = onSnapshot(
       q,
-      (snap) => {
-        const mapped: OrderData[] = snap.docs.map((d) => {
-          const data = d.data() as Omit<OrderData, "id">;
-          return {
-            id: d.id,
-            ...data,
-            items: normalizeItems(data.items),
-          };
-        });
-        setOrders(mapped);
-        setLoadingOrders(false);
-        setOrdersError("");
+      (snapshot) => {
+        try {
+          const mapped: OrderData[] = snapshot.docs.map((document) => {
+            const data = document.data() as Omit<OrderData, "id">;
+
+            return {
+              id: document.id,
+              ...data,
+              items: normalizeItems(data.items),
+            };
+          });
+
+          mapped.sort(
+            (a, b) =>
+              getTimestampMillis(b.createdAt) -
+              getTimestampMillis(a.createdAt)
+          );
+
+          setOrders(mapped);
+          setOrdersError("");
+        } catch (error) {
+          console.error("Admin dashboard order parsing error:", error);
+          setOrders([]);
+          setOrdersError("Some order records contain invalid data.");
+        } finally {
+          setLoadingOrders(false);
+        }
       },
       (error) => {
-        setOrdersError(error.message || "Failed to load orders");
+        console.error("Admin dashboard orders listener error:", error);
+        setOrders([]);
+        setOrdersError(error.message || "Failed to load orders.");
         setLoadingOrders(false);
       }
     );
-    return () => unsub();
-  }, []);
+
+    return () => unsubscribe();
+  }, [authLoading, user, role]);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setAppointments([]);
+      setAppointmentsError(
+        "You must be logged in as admin to view appointments."
+      );
+      setLoadingAppointments(false);
+      return;
+    }
+
+    if (role !== "admin") {
+      setAppointments([]);
+      setAppointmentsError("Only administrators can view appointments.");
+      setLoadingAppointments(false);
+      return;
+    }
+
+    setLoadingAppointments(true);
+    setAppointmentsError("");
+
     const q = query(collection(db, "appointments"));
-    const unsub = onSnapshot(
+
+    const unsubscribe = onSnapshot(
       q,
-      (snap) => {
-        const mapped: Appointment[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as Appointment[];
-        setAppointments(mapped);
-        setLoadingAppointments(false);
-        setAppointmentsError("");
+      (snapshot) => {
+        try {
+          const mapped = snapshot.docs.map((document) =>
+            normalizeAppointment(document.id, document.data())
+          );
+
+          setAppointments(mapped);
+          setAppointmentsError("");
+        } catch (error) {
+          console.error("Admin dashboard appointment parsing error:", error);
+          setAppointments([]);
+          setAppointmentsError("Some appointment records contain invalid data.");
+        } finally {
+          setLoadingAppointments(false);
+        }
       },
       (error) => {
-        setAppointmentsError(error.message || "Failed to load appointments");
+        console.error("Admin dashboard appointments listener error:", error);
+        setAppointments([]);
+        setAppointmentsError(error.message || "Failed to load appointments.");
         setLoadingAppointments(false);
       }
     );
-    return () => unsub();
-  }, []);
 
-  const filteredOrders = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return orders;
-    return orders.filter((o) =>
-      [
-        o.orderNumber,
-        o.customerName,
-        o.customerEmail,
-        o.customerPhone,
-        o.itemSummary,
-        o.status,
-        o.id,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(term)
-    );
-  }, [orders, searchTerm]);
+    return () => unsubscribe();
+  }, [authLoading, user, role]);
 
   const pendingOrders = useMemo(
-    () => orders.filter((o) => o.status === "Pending").length,
+    () => orders.filter((order) => order.status === "Pending").length,
     [orders]
   );
 
   const dailyCurrentOrders = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
     return orders.filter((order) => {
-      const orderDate = order.createdAt instanceof Timestamp
-        ? order.createdAt.toDate()
-        : order.createdAt instanceof Date
-          ? order.createdAt
-          : null;
-      if (!orderDate) return false;
+      const millis = getTimestampMillis(order.createdAt);
+      if (!millis) return false;
+
+      const orderDate = new Date(millis);
       orderDate.setHours(0, 0, 0, 0);
+
       return orderDate.getTime() === today.getTime();
     }).length;
   }, [orders]);
 
   const pendingAppointments = useMemo(
-    () => appointments.filter((a) => a.status === "pending").length,
+    () =>
+      appointments.filter((appointment) => appointment.status === "pending")
+        .length,
     [appointments]
   );
 
   const activeAppointments = useMemo(
-    () => appointments.filter((a) => a.status === "approved").length,
+    () =>
+      appointments.filter((appointment) => appointment.status === "approved")
+        .length,
     [appointments]
   );
 
@@ -193,21 +287,16 @@ export function AdminDashboard() {
     >();
 
     orders.forEach((order) => {
-      const rawDate = order.createdAt;
-      const date =
-        rawDate instanceof Date
-          ? rawDate
-          : rawDate && "toDate" in rawDate
-            ? rawDate.toDate()
-            : null;
+      const millis = getTimestampMillis(order.createdAt);
+      if (!millis) return;
 
-      if (!date) return;
-
+      const date = new Date(millis);
       const isoDate = date.toISOString().slice(0, 10);
       const label = date.toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
       });
+
       const existing = grouped.get(isoDate);
 
       if (existing) {
@@ -227,76 +316,109 @@ export function AdminDashboard() {
   }, [orders]);
 
   const appointmentsByDay = useMemo(() => {
-  const grouped = new Map<string, { label: string; appointments: number; timestamp: number }>();
+    const grouped = new Map<
+      string,
+      { label: string; appointments: number; timestamp: number }
+    >();
 
-  appointments.forEach((appointment) => {
-    const rawDate = (appointment as any).date;
+    appointments.forEach((appointment) => {
+      const rawDate = appointment.date;
 
-let date: Date | null = null;
-if (typeof rawDate === "string" && rawDate.length >= 10) {
-  date = new Date(rawDate + "T00:00:00");
-} else if (rawDate instanceof Date) {
-  date = rawDate;
-}
+      if (
+        typeof rawDate !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+      ) {
+        return;
+      }
 
-    if (!date || isNaN(date.getTime())) return;
+      const date = new Date(`${rawDate}T00:00:00`);
 
-    const isoDate = date.toISOString().slice(0, 10);
-    const label = date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-    const existing = grouped.get(isoDate);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
 
-    if (existing) {
-      existing.appointments += 1;
-    } else {
-      grouped.set(isoDate, {
-        label,
-        appointments: 1,
-        timestamp: date.getTime(),
+      const isoDate = date.toISOString().slice(0, 10);
+      const label = date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
       });
-    }
-  });
 
-  return Array.from(grouped.values())
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .map(({ label, appointments }) => ({ date: label, appointments }));
-}, [appointments]);
+      const existing = grouped.get(isoDate);
 
-  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+      if (existing) {
+        existing.appointments += 1;
+      } else {
+        grouped.set(isoDate, {
+          label,
+          appointments: 1,
+          timestamp: date.getTime(),
+        });
+      }
+    });
+
+    return Array.from(grouped.values())
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(({ label, appointments }) => ({ date: label, appointments }));
+  }, [appointments]);
+
+  const updateOrderStatus = async (
+    orderId: string,
+    newStatus: OrderStatus
+  ) => {
     try {
-      const order = orders.find((o) => o.id === orderId);
+      const order = orders.find((item) => item.id === orderId);
+
       if (!order) return;
       if (order.status === newStatus) return;
 
-      setUpdatingOrderId(orderId);
       await updateDoc(doc(db, "orders", orderId), {
         status: newStatus,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
 
       if (order.userId) {
         await createNotification({
           userId: order.userId,
           title: "Order status updated",
-          message: `Your order ${order.orderNumber || order.id} is now ${newStatus}.`,
+          message: `Your order ${
+            order.orderNumber || order.id
+          } is now ${newStatus}.`,
           type: "order",
           statusRefId: orderId,
         });
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to update status";
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update status";
       setOrdersError(message);
-    } finally {
-      setUpdatingOrderId(null);
     }
   };
 
-  const handleLogout = async () => {
-    await signOut(getAuth());
-    navigate("/login");
-  };
+  if (authLoading || loadingOrders || loadingAppointments) {
+    return (
+      <div className="flex items-center justify-center rounded-2xl border border-border bg-card p-10 text-muted-foreground">
+        Loading dashboard...
+      </div>
+    );
+  }
+
+  if (ordersError || appointmentsError) {
+    return (
+      <div className="space-y-3">
+        {ordersError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+            {ordersError}
+          </div>
+        )}
+
+        {appointmentsError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+            {appointmentsError}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -305,9 +427,14 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <Clock className="h-6 w-6" />
           </div>
+
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pending Orders</p>
-            <h3 className="text-2xl font-bold text-card-foreground">{pendingOrders}</h3>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Pending Orders
+            </p>
+            <h3 className="text-2xl font-bold text-card-foreground">
+              {pendingOrders}
+            </h3>
           </div>
         </div>
 
@@ -315,9 +442,14 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <PackageSearch className="h-6 w-6" />
           </div>
+
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Daily Current Orders</p>
-            <h3 className="text-2xl font-bold text-card-foreground">{dailyCurrentOrders}</h3>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Daily Current Orders
+            </p>
+            <h3 className="text-2xl font-bold text-card-foreground">
+              {dailyCurrentOrders}
+            </h3>
           </div>
         </div>
 
@@ -325,9 +457,14 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <CalendarCheck className="h-6 w-6" />
           </div>
+
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pending Appointments</p>
-            <h3 className="text-2xl font-bold text-card-foreground">{pendingAppointments}</h3>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Pending Appointments
+            </p>
+            <h3 className="text-2xl font-bold text-card-foreground">
+              {pendingAppointments}
+            </h3>
           </div>
         </div>
 
@@ -335,9 +472,14 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <CheckCircle className="h-6 w-6" />
           </div>
+
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Active Appointments</p>
-            <h3 className="text-2xl font-bold text-card-foreground">{activeAppointments}</h3>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Active Appointments
+            </p>
+            <h3 className="text-2xl font-bold text-card-foreground">
+              {activeAppointments}
+            </h3>
           </div>
         </div>
       </div>
@@ -347,14 +489,20 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Orders Trend</p>
-              <h3 className="text-lg font-semibold text-card-foreground">Daily Orders</h3>
+              <h3 className="text-lg font-semibold text-card-foreground">
+                Daily Orders
+              </h3>
             </div>
+
             <div className="rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
               Total {orders.length} orders
             </div>
           </div>
+
           <ChartContainer
-            config={{ orders: { label: "Orders", color: "hsl(var(--primary))" } }}
+            config={{
+              orders: { label: "Orders", color: "hsl(var(--primary))" },
+            }}
             className="h-[320px] w-full min-w-0"
           >
             {ordersByDay.length === 0 ? (
@@ -362,23 +510,30 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
                 No order data yet.
               </div>
             ) : (
-            <BarChart data={ordersByDay} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                domain={[0, "dataMax"]}
-                interval={0}
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="orders"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
+              <BarChart
+                data={ordersByDay}
+                margin={{ top: 10, right: 12, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                  vertical={false}
+                />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  domain={[0, "dataMax"]}
+                  interval={0}
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Bar
+                  dataKey="orders"
+                  fill="hsl(var(--primary))"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
             )}
           </ChartContainer>
         </div>
@@ -386,15 +541,26 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Appointments Trend</p>
-              <h3 className="text-lg font-semibold text-card-foreground">Daily Appointments</h3>
+              <p className="text-sm text-muted-foreground">
+                Appointments Trend
+              </p>
+              <h3 className="text-lg font-semibold text-card-foreground">
+                Daily Appointments
+              </h3>
             </div>
+
             <div className="rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
               Total {appointments.length} appointments
             </div>
           </div>
+
           <ChartContainer
-            config={{ appointments: { label: "Appointments", color: "hsl(var(--primary))" } }}
+            config={{
+              appointments: {
+                label: "Appointments",
+                color: "hsl(var(--primary))",
+              },
+            }}
             className="h-[320px]"
           >
             {appointmentsByDay.length === 0 ? (
@@ -402,32 +568,53 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
                 No appointment data yet.
               </div>
             ) : (
-            <AreaChart data={appointmentsByDay} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="appointmentsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                domain={[0, "dataMax"]}
-                interval={0}
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-              <Area
-                type="monotone"
-                dataKey="appointments"
-                stroke="hsl(var(--primary))"
-                fill="url(#appointmentsGradient)"
-                strokeWidth={3}
-                fillOpacity={1}
-              />
-            </AreaChart>
+              <AreaChart
+                data={appointmentsByDay}
+                margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient
+                    id="appointmentsGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                  vertical={false}
+                />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  domain={[0, "dataMax"]}
+                  interval={0}
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="appointments"
+                  stroke="hsl(var(--primary))"
+                  fill="url(#appointmentsGradient)"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                />
+              </AreaChart>
             )}
           </ChartContainer>
         </div>
