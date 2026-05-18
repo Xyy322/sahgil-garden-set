@@ -1,17 +1,15 @@
 import { useEffect, useState } from "react";
-import { db } from "../../utils/firebase/config";
 import {
   collection,
   onSnapshot,
-  updateDoc,
-  doc,
-  arrayUnion,
-  Timestamp,
   query,
+  Timestamp,
   where,
-  orderBy,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+
+import { db } from "../../utils/firebase/config";
+import { useAuth } from "../context/AuthContext";
+
 import {
   Dialog,
   DialogContent,
@@ -19,128 +17,238 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/textarea";
-import { ScrollArea } from "../components/ui/scroll-area";
-
-interface Message {
-  sender: "admin" | "customer";
-  content: string;
-  timestamp: Timestamp;
-  senderName?: string;
-}
 
 interface InquiryData {
   id: string;
+  userId?: string;
   firstName: string;
   lastName: string;
   email: string;
   inquiryType: string;
   message: string;
   status: "pending" | "responded" | "closed";
-  messages?: Message[];
-  createdAt?: Timestamp;
+  createdAt?: Timestamp | string | null;
+  updatedAt?: Timestamp | string | null;
+}
+
+function formatDate(value: unknown) {
+  if (!value) return "N/A";
+
+  if (value instanceof Timestamp) {
+    return value.toDate().toLocaleString();
+  }
+
+  if (typeof (value as any)?.toDate === "function") {
+    return (value as any).toDate().toLocaleString();
+  }
+
+  const parsed = new Date(value as string).getTime();
+  if (Number.isNaN(parsed)) return "N/A";
+
+  return new Date(parsed).toLocaleString();
+}
+
+function getTimestampMillis(value: unknown): number {
+  if (!value) return 0;
+
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (typeof (value as any)?.toMillis === "function") {
+    return (value as any).toMillis();
+  }
+
+  const parsed = new Date(value as string).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function statusLabel(status: unknown) {
+  if (status === "closed") return "Closed";
+  if (status === "responded") return "Read";
+  return "Submitted";
+}
+
+function statusBadge(status: unknown) {
+  if (status === "closed") {
+    return "bg-stone-100 text-stone-700 border-stone-200";
+  }
+
+  if (status === "responded") {
+    return "bg-blue-50 text-blue-700 border-blue-200";
+  }
+
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function normalizeInquiry(id: string, data: any): InquiryData {
+  const status =
+    data.status === "responded" ||
+    data.status === "closed" ||
+    data.status === "pending"
+      ? data.status
+      : "pending";
+
+  return {
+    id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+    firstName: typeof data.firstName === "string" ? data.firstName : "",
+    lastName: typeof data.lastName === "string" ? data.lastName : "",
+    email: typeof data.email === "string" ? data.email : "",
+    inquiryType:
+      typeof data.inquiryType === "string" && data.inquiryType.trim()
+        ? data.inquiryType
+        : "General Inquiry",
+    message: typeof data.message === "string" ? data.message : "",
+    status,
+    createdAt: data.createdAt ?? null,
+    updatedAt: data.updatedAt ?? null,
+  };
 }
 
 export function CustomerInquiries() {
   const [inquiries, setInquiries] = useState<InquiryData[]>([]);
-  const [selectedInquiry, setSelectedInquiry] =
-    useState<InquiryData | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
+  const [selectedInquiry, setSelectedInquiry] = useState<InquiryData | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { user, role, loading: authLoading } = useAuth();
 
-  // AUTH
+  const selectedLiveInquiry = selectedInquiry
+    ? inquiries.find((inq) => inq.id === selectedInquiry.id) || selectedInquiry
+    : null;
+
   useEffect(() => {
-    const auth = getAuth();
-
-    const unsub = auth.onAuthStateChanged((user) => {
-      setUserEmail(user?.email || null);
-    });
-
-    return () => unsub();
-  }, []);
-
-  // LOAD INQUIRIES
-  useEffect(() => {
-    if (!userEmail) {
-      setInquiries([]);
+    if (authLoading) {
       return;
     }
 
+    if (!user || role !== "customer") {
+      setInquiries([]);
+      setLoading(false);
+      setError("Only logged-in customers can view their inquiries.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
     const q = query(
       collection(db, "inquiries"),
-      where("email", "==", userEmail),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      const mapped = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as InquiryData[];
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        try {
+          const mapped = snapshot.docs
+            .map((document) => normalizeInquiry(document.id, document.data()))
+            .sort(
+              (a, b) =>
+                getTimestampMillis(b.createdAt) -
+                getTimestampMillis(a.createdAt)
+            );
 
-      setInquiries(mapped);
-    });
+          setInquiries(mapped);
+          setError("");
+        } catch (err) {
+          console.error("Customer inquiry parsing error:", err);
+          setError("Some inquiry records contain invalid data.");
+        } finally {
+          setLoading(false);
+        }
+      },
+      (err) => {
+        console.error("Customer inquiries listener error:", err);
+        setInquiries([]);
+        setError(err.message || "Failed to load your inquiries.");
+        setLoading(false);
+      }
+    );
 
-    return () => unsub();
-  }, [userEmail]);
+    return () => unsubscribe();
+  }, [authLoading, user, role]);
 
-  // SEND REPLY
-  const sendReply = async () => {
-    if (!selectedInquiry || !replyText.trim()) return;
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-stone-100 bg-white p-8 shadow-sm">
+        Loading your inquiries...
+      </div>
+    );
+  }
 
-    try {
-      setSendingReply(true);
-
-      const authEmail = getAuth().currentUser?.email;
-      if (!authEmail) return;
-
-      const newMessage: Message = {
-        sender: "customer",
-        content: replyText,
-        timestamp: Timestamp.now(),
-        senderName: authEmail,
-      };
-
-      await updateDoc(doc(db, "inquiries", selectedInquiry.id), {
-        messages: arrayUnion(newMessage),
-      });
-
-      setReplyText("");
-    } finally {
-      setSendingReply(false);
-    }
-  };
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
-        <h2 className="text-2xl font-bold mb-6 text-stone-900">Your Inquiries</h2>
+      <div className="rounded-3xl border border-stone-100 bg-white p-6 shadow-sm md:p-8">
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-stone-900">
+              Your Inquiries
+            </h2>
+            <p className="text-sm text-stone-500">
+              View the inquiries you submitted to Sahgil Garden Set.
+            </p>
+          </div>
+
+          <span className="w-fit rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-700">
+            {inquiries.length} total
+          </span>
+        </div>
 
         {inquiries.length === 0 ? (
-          <div className="text-center py-12 text-stone-500">No inquiries yet.</div>
+          <div className="rounded-xl border border-stone-100 bg-stone-50 py-12 text-center text-sm text-stone-500">
+            No inquiries yet.
+          </div>
         ) : (
           <div className="space-y-4">
             {inquiries.map((inquiry) => (
               <div
                 key={inquiry.id}
-                className="rounded-2xl border border-stone-100 bg-stone-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                className="flex flex-col gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-stone-800 truncate">{inquiry.inquiryType}</h3>
-                  <p className="text-sm text-stone-600 truncate">{inquiry.message}</p>
-                  <span className={`inline-block mt-2 px-2 py-0.5 text-xs rounded-full font-medium border ${
-                    inquiry.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    inquiry.status === 'responded' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    inquiry.status === 'closed' ? 'bg-stone-100 text-stone-700 border-stone-200' :
-                    'bg-stone-100 text-stone-700 border-stone-200'
-                  }`}>
-                    {inquiry.status.charAt(0).toUpperCase() + inquiry.status.slice(1)}
-                  </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-stone-800">
+                      {inquiry.inquiryType || "General Inquiry"}
+                    </h3>
+
+                    <span
+                      className={`inline-block rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadge(
+                        inquiry.status
+                      )}`}
+                    >
+                      {statusLabel(inquiry.status)}
+                    </span>
+                  </div>
+
+                  <p className="line-clamp-2 text-sm text-stone-600">
+                    {inquiry.message || "No message provided."}
+                  </p>
+
+                  <p className="text-xs text-stone-400">
+                    Submitted: {formatDate(inquiry.createdAt)}
+                  </p>
                 </div>
-                <div className="flex-shrink-0">
-                  <Button size="sm" onClick={() => setSelectedInquiry(inquiry)} className="h-9 px-4">View</Button>
+
+                <div className="shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedInquiry(inquiry)}
+                    className="h-9 px-4"
+                  >
+                    View
+                  </Button>
                 </div>
               </div>
             ))}
@@ -148,43 +256,63 @@ export function CustomerInquiries() {
         )}
       </div>
 
-      {/* CHAT MODAL */}
-      <Dialog open={!!selectedInquiry} onOpenChange={() => setSelectedInquiry(null)}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b border-stone-100">
-            <DialogTitle className="text-lg font-bold text-stone-900">Conversation</DialogTitle>
+      <Dialog
+        open={!!selectedInquiry}
+        onOpenChange={(open) => {
+          if (!open) setSelectedInquiry(null);
+        }}
+      >
+        <DialogContent className="max-w-lg overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-stone-900">
+              Inquiry Details
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-0">
-            <ScrollArea className="h-64 border-b border-stone-100 px-6 py-4 bg-stone-50">
-              {selectedInquiry?.messages?.length ? (
-                selectedInquiry.messages.map((msg, i) => (
-                  <div key={i} className={`mb-4 flex flex-col ${msg.sender === 'customer' ? 'items-end' : 'items-start'}`}>
-                    <div className={`rounded-xl px-4 py-2 max-w-xs break-words ${msg.sender === 'admin' ? 'bg-emerald-50 text-stone-800' : 'bg-white text-stone-900 border border-stone-200'}`}>
-                      <span className="block text-sm">{msg.content}</span>
-                    </div>
-                    <span className="text-xs mt-1 text-stone-400">{msg.sender === 'admin' ? 'Admin' : 'You'}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-stone-500">No messages yet.</div>
-              )}
-            </ScrollArea>
-            <div className="p-6 flex flex-col gap-3">
-              <Textarea
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Type message..."
-                className="resize-none min-h-[48px]"
-              />
-              <Button
-                onClick={sendReply}
-                disabled={sendingReply || !replyText.trim()}
-                className="h-10 w-full"
-              >
-                Send
-              </Button>
+
+          {selectedLiveInquiry && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-stone-500">Inquiry Type</p>
+                <p className="font-medium text-stone-800">
+                  {selectedLiveInquiry.inquiryType || "General Inquiry"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-stone-500">Status</p>
+                <span
+                  className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
+                    selectedLiveInquiry.status
+                  )}`}
+                >
+                  {statusLabel(selectedLiveInquiry.status)}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-sm text-stone-500">Submitted At</p>
+                <p className="font-medium text-stone-800">
+                  {formatDate(selectedLiveInquiry.createdAt)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-stone-500">Message</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm leading-relaxed text-stone-700">
+                  {selectedLiveInquiry.message || "No message provided."}
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedInquiry(null)}
+                >
+                  Close
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

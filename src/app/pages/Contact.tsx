@@ -1,76 +1,88 @@
-import { useState, useEffect } from 'react';
-import { MapPin, Phone, Mail, Send, Leaf, Calendar } from 'lucide-react';
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { useState } from "react";
+import { MapPin, Phone, Mail, Send, Leaf } from "lucide-react";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+
 import { db } from "../../utils/firebase/config";
+import { useAuth } from "../context/AuthContext";
 
 export function Contact() {
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    message: ''
+    name: "",
+    phone: "",
+    message: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
-  const [authEmail, setAuthEmail] = useState('');
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const auth = getAuth();
-    const unsub = auth.onAuthStateChanged((user) => {
-      setAuthEmail(user?.email || '');
-    });
-    return () => unsub();
-  }, []);
+  const { user, profile, role, loading: authLoading } = useAuth();
+
+  const authEmail = user?.email || profile?.email || "";
+
+  const splitFullName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/);
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ");
+
+    return { firstName, lastName };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      // validation
-      if (!formData.name || !authEmail || !formData.message) {
-        if (!authEmail) {
-          throw new Error('Please log in to send an inquiry.');
-        }
-        throw new Error('Please fill in all required fields');
+      if (authLoading) {
+        throw new Error("Please wait while your account is being verified.");
       }
 
-      const now = Timestamp.now();
+      if (!user || role !== "customer") {
+        throw new Error("Please log in as a customer to send an inquiry.");
+      }
 
-              await addDoc(collection(db, "inquiries"), {
-          userId: getAuth().currentUser?.uid ?? "",
-          firstName: formData.name.trim().split(" ")[0] || formData.name.trim(),
-          lastName: formData.name.trim().split(" ").slice(1).join(" ") || "",
-          email: authEmail,
-          inquiryType: "general",
-          message: formData.message.trim(),
-          status: "pending",
-          messages: [
-          {
-          sender: "customer",
-          content: formData.message.trim(),
-          timestamp: Timestamp.now(),
-          senderName: formData.name
-          }
-        ],
-  createdAt: now,
-  updatedAt: now
-});
+      const cleanName = formData.name.trim();
+      const cleanPhone = formData.phone.trim();
+      const cleanMessage = formData.message.trim();
+
+      if (!cleanName || !authEmail || !cleanMessage) {
+        throw new Error("Please fill in all required fields.");
+      }
+
+      const { firstName, lastName } = splitFullName(cleanName);
+
+      await addDoc(collection(db, "inquiries"), {
+        userId: user.uid,
+
+        firstName,
+        lastName,
+        fullName: cleanName,
+        email: authEmail,
+        phone: cleanPhone,
+
+        inquiryType: "General Inquiry",
+        message: cleanMessage,
+
+        status: "pending",
+
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
       setSubmitted(true);
 
-      // reset form
       setFormData({
-        name: '',
-        phone: '',
-        message: ''
+        name: "",
+        phone: "",
+        message: "",
       });
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to send message. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -91,6 +103,7 @@ export function Contact() {
           </p>
         </div>
       </section>
+
       <div className="max-w-5xl mx-auto px-2 md:px-4 py-12 md:py-20 grid lg:grid-cols-2 gap-10 md:gap-16">
         {/* CONTACT INFO */}
         <div className="space-y-6 md:space-y-8">
@@ -99,14 +112,18 @@ export function Contact() {
               <MapPin className="text-emerald-600" />
               Visit Us
             </h2>
-            <p className="text-stone-600">Baranggay Lumil, Silang, Cavite, Philippines</p>
+            <p className="text-stone-600">
+              Baranggay Lumil, Silang, Cavite, Philippines
+            </p>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="bg-white p-5 md:p-6 rounded-2xl border border-stone-100 text-center flex flex-col items-center">
               <Phone className="mx-auto text-emerald-600 mb-2 md:mb-3" />
               <h3 className="font-bold text-stone-800">Call</h3>
               <p className="text-stone-600">+63 917 123 4567</p>
             </div>
+
             <div className="bg-white p-5 md:p-6 rounded-2xl border border-stone-100 text-center flex flex-col items-center">
               <Mail className="mx-auto text-emerald-600 mb-2 md:mb-3" />
               <h3 className="font-bold text-stone-800">Email</h3>
@@ -114,19 +131,29 @@ export function Contact() {
             </div>
           </div>
         </div>
+
         {/* FORM */}
         <div>
           {!submitted ? (
-            <form onSubmit={handleSubmit} className="bg-white p-6 md:p-8 rounded-2xl border border-stone-100 space-y-5 md:space-y-6 shadow-sm">
-              <h2 className="text-xl md:text-2xl font-bold mb-2">Send Message</h2>
+            <form
+              onSubmit={handleSubmit}
+              className="bg-white p-6 md:p-8 rounded-2xl border border-stone-100 space-y-5 md:space-y-6 shadow-sm"
+            >
+              <h2 className="text-xl md:text-2xl font-bold mb-2">
+                Send Message
+              </h2>
+
               <input
                 type="text"
                 placeholder="Full Name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 required
               />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <input
                   type="email"
@@ -136,38 +163,60 @@ export function Contact() {
                   disabled
                   required
                 />
+
                 <input
                   type="tel"
                   placeholder="Phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+
               <textarea
                 placeholder="Message"
                 value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, message: e.target.value })
+                }
                 className="w-full px-4 py-3 border border-stone-200 rounded-lg min-h-[96px] focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                 required
               />
+
               {error && (
                 <p className="text-red-500 text-sm text-center">{error}</p>
               )}
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || authLoading}
                 className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
               >
                 <Send size={18} />
-                {loading ? "Sending..." : "Send Message"}
+                {loading || authLoading ? "Sending..." : "Send Message"}
               </button>
+
+              {!user && (
+                <p className="text-center text-xs text-stone-500">
+                  You must be logged in to send an inquiry.
+                </p>
+              )}
             </form>
           ) : (
             <div className="bg-emerald-50 p-8 md:p-12 rounded-2xl text-center border border-emerald-100 flex flex-col items-center">
-              <Leaf className="mx-auto text-emerald-600 mb-3 md:mb-4" size={40} />
-              <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">Message Sent!</h2>
-              <p className="text-emerald-700 mb-4">We’ll get back to you soon.</p>
+              <Leaf
+                className="mx-auto text-emerald-600 mb-3 md:mb-4"
+                size={40}
+              />
+              <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">
+                Message Sent!
+              </h2>
+              <p className="text-emerald-700 mb-4">
+                Your inquiry has been submitted successfully.
+              </p>
+
               <button
                 onClick={() => setSubmitted(false)}
                 className="mt-2 md:mt-6 bg-emerald-600 text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg font-semibold hover:bg-emerald-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"

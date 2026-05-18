@@ -113,6 +113,15 @@ export const router = createBrowserRouter([
   ),
 },
 
+{
+  path: "dashboard/customer/inquiries",
+  element: (
+    <RoleProtectedRoute allowedRoles={["customer"]}>
+      <CustomerInquiries />
+    </RoleProtectedRoute>
+  ),
+},
+
     {
       path: "dashboard/admin",
       element: (
