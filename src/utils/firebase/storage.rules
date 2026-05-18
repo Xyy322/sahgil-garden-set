@@ -1,4 +1,5 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -7,19 +8,18 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        firestore.get(
+      return isAuthenticated()
+        && firestore.get(
           /databases/(default)/documents/users/$(request.auth.uid)
-        ).data.role == 'admin';
+        ).data.role == "admin";
     }
 
     match /product-images/{allPaths=**} {
-
       allow read: if true;
 
       allow write: if isAdmin()
         && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches("image/.*");
     }
 
     match /{allPaths=**} {
