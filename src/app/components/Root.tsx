@@ -6,9 +6,8 @@ import {
   ShoppingCart,
   User,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import type { User as FirebaseUser } from "firebase/auth";
+import { useState, } from "react";
+import { useAuth } from "../context/AuthContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,8 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../utils/firebase/config";
 import { useCart } from "./CartContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
 import { Cart } from "./Cart";
@@ -33,62 +30,24 @@ export function Root() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [role, setRole] = useState<"admin" | "customer" | null>(null);
+  
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
   const { items } = useCart();
+  const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    const auth = getAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (!firebaseUser) {
-        setRole(null);
-        return;
-      }
-
-      try {
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-
-        if (snap.exists()) {
-          const data = snap.data() as { role?: "admin" | "customer" };
-          const userRole = data.role ?? null;
-          setRole(userRole);
-
-          if (
-            userRole === "admin" &&
-            !location.pathname.startsWith("/dashboard/admin")
-          ) {
-            navigate("/dashboard/admin", { replace: true });
-          }
-        } else {
-          setRole(null);
-        }
-      } catch {
-        setRole(null);
-      }
-    });
-
-    return () => unsubscribe();
-}, [navigate]);
 
   const handleLogout = async () => {
-    const auth = getAuth();
-    await signOut(auth);
+  await logout();
 
-    setUser(null);
-    setRole(null);
-    setIsMenuOpen(false);
-    setIsProfileOpen(false);
-    setIsLogoutDialogOpen(false);
+  setIsMenuOpen(false);
+  setIsProfileOpen(false);
+  setIsLogoutDialogOpen(false);
 
-    navigate("/");
-  };
+  navigate("/login", { replace: true });
+};
 
   const isAdminDashboard = location.pathname.startsWith("/dashboard/admin");
 

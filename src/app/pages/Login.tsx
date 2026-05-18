@@ -2,12 +2,13 @@
 // It directly affects the system by determining user access and redirecting to the correct dashboard.
 // This file integrates with Firebase Auth and Firestore for user profile resolution.
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-import { db } from "../../utils/firebase/config";
+import { useLocation, useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, db } from "../../utils/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 import { mapFirebaseAuthError } from "../../utils/firebase/errorMapper";
 import { ErrorModal } from "../components/ErrorModal";
+import { useAuth } from "../context/AuthContext";
 
 export function Login() {
   // State for email, password, and error messages. 
@@ -15,6 +16,8 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+const { refreshProfile } = useAuth();
 
   // Handles login form submission and authentication.
   // This function signs in the user and resolves their profile for role-based navigation.
@@ -23,8 +26,12 @@ export function Login() {
     setError("");
     try {
       // Try Firebase Auth sign in first.
-      const auth = getAuth();
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const cleanEmail = email.trim().toLowerCase();
+const userCredential = await signInWithEmailAndPassword(
+  auth,
+  cleanEmail,
+  password
+);
 
       // Resolve profile by UID (standardized)
       const uidDocRef = doc(db, "users", userCredential.user.uid);
@@ -33,18 +40,26 @@ export function Login() {
       const profileData = uidDocSnap.data() as Record<string, unknown> | undefined;
 
       // If no profile found, show error.
-      if (!profileData || typeof profileData.role !== 'string') {
-        setError("Invalid user profile. Please register again or contact support.");
-        return;
-      }
+      if (
+  !profileData ||
+  (profileData.role !== "admin" && profileData.role !== "customer")
+) {
+  await signOut(auth);
+  setError("Invalid user profile. Please register again or contact support.");
+  return;
+}
 
-      // Role-based navigation: admin to dashboard, customer to home (default).
-      const role = profileData.role;
-      if (role === "admin") {
-        navigate("/dashboard/admin");
-      } else {
-        navigate("/");
-      }
+const role = profileData.role;
+
+await refreshProfile();
+
+const from = location.state?.from;
+
+if (role === "admin") {
+  navigate("/dashboard/admin", { replace: true });
+} else {
+  navigate("/", { replace: true });
+}
     }catch (err: unknown) {
   setError(mapFirebaseAuthError(err));
 }

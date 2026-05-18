@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
-import { getAuth, signOut } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 import {
   LayoutDashboard,
   Package,
@@ -18,11 +18,12 @@ export function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    await signOut(getAuth());
-    navigate("/login", { replace: true });
-  };
+  await logout();
+  navigate("/login", { replace: true });
+};
 
   const navItems = [
     { path: "/dashboard/admin", label: "Dashboard", icon: LayoutDashboard },

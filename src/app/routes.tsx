@@ -18,7 +18,10 @@ import { LandscapingBooking } from "./pages/LandscapingBooking";
 import { Profile } from "./pages/Profile";
 import { ProfileEdit } from "./pages/ProfileEdit";
 import { PasswordChange } from "./pages/PasswordChange";
-import { RoleProtectedRoute } from "./components/RoleProtectedRoute";
+import {
+  RoleProtectedRoute,
+  PublicOnlyRoute,
+} from "./components/RoleProtectedRoute";
 import { AdminLayout } from "./components/AdminLayout";
 import { CustomerInquiries } from "./pages/CustomerInquiries";
 export const router = createBrowserRouter([
@@ -30,8 +33,22 @@ export const router = createBrowserRouter([
     { path: "about", element: <About /> },
     { path: "services", element: <Services /> },
     { path: "contact", element: <Contact /> },
-    { path: "login", element: <Login /> },
-    { path: "register", element: <Register /> },
+    {
+  path: "login",
+  element: (
+    <PublicOnlyRoute>
+      <Login />
+    </PublicOnlyRoute>
+  ),
+},
+    {
+  path: "register",
+  element: (
+    <PublicOnlyRoute>
+      <Register />
+    </PublicOnlyRoute>
+  ),
+},
 
     {
       path: "checkout",
