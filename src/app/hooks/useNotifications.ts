@@ -4,6 +4,7 @@ import {
   doc,
   onSnapshot,
   query,
+  serverTimestamp,
   updateDoc,
   where,
   Timestamp,
@@ -20,8 +21,60 @@ export interface AppNotification {
   message: string;
   type: NotificationType;
   statusRefId: string;
+  relatedId?: string;
   read: boolean;
   createdAt?: Timestamp | string | null;
+}
+
+function getTime(value: unknown): number {
+  if (!value) return 0;
+
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (typeof value === "string") {
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
+function normalizeNotification(id: string, data: any): AppNotification {
+  return {
+    id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+
+    title:
+      typeof data.title === "string" && data.title.trim()
+        ? data.title
+        : "Notification",
+
+    message:
+      typeof data.message === "string" && data.message.trim()
+        ? data.message
+        : "You have a new update.",
+
+    type:
+      data.type === "order" ||
+      data.type === "appointment" ||
+      data.type === "inquiry"
+        ? data.type
+        : "order",
+
+    statusRefId:
+      typeof data.statusRefId === "string"
+        ? data.statusRefId
+        : typeof data.relatedId === "string"
+        ? data.relatedId
+        : "",
+
+    relatedId: typeof data.relatedId === "string" ? data.relatedId : "",
+
+    read: data.read === true,
+    createdAt: data.createdAt ?? null,
+  };
 }
 
 export function useNotifications(userId: string | null) {
@@ -46,34 +99,14 @@ export function useNotifications(userId: string | null) {
       q,
       (snapshot) => {
         const mapped = snapshot.docs
-          .map((d) => {
-            const data = d.data() as any;
-
-            return {
-              id: d.id,
-              ...data,
-              read: data.read === true, // strict boolean normalization
-            } as AppNotification;
-          })
-          .sort((a, b) => {
-            const getTime = (value: any): number => {
-              if (!value) return 0;
-
-              if (value instanceof Timestamp) {
-                return value.toMillis();
-              }
-
-              const parsed = new Date(value).getTime();
-              return isNaN(parsed) ? 0 : parsed;
-            };
-
-            return getTime(b.createdAt) - getTime(a.createdAt);
-          });
+          .map((d) => normalizeNotification(d.id, d.data()))
+          .sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
 
         setNotifications(mapped);
         setLoading(false);
       },
-      () => {
+      (error) => {
+        console.error("Notifications listener error:", error);
         setNotifications([]);
         setLoading(false);
       }
@@ -90,6 +123,7 @@ export function useNotifications(userId: string | null) {
   const markAsRead = async (notificationId: string) => {
     await updateDoc(doc(db, "notifications", notificationId), {
       read: true,
+      updatedAt: serverTimestamp(),
     });
   };
 
@@ -102,6 +136,7 @@ export function useNotifications(userId: string | null) {
     unread.forEach((item) => {
       batch.update(doc(db, "notifications", item.id), {
         read: true,
+        updatedAt: serverTimestamp(),
       });
     });
 
