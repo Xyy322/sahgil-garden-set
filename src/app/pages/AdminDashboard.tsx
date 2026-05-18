@@ -357,6 +357,11 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
             config={{ orders: { label: "Orders", color: "hsl(var(--primary))" } }}
             className="h-[320px] w-full min-w-0"
           >
+            {ordersByDay.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No order data yet.
+              </div>
+            ) : (
             <BarChart data={ordersByDay} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="date" tickLine={false} axisLine={false} />
@@ -374,6 +379,7 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
+            )}
           </ChartContainer>
         </div>
 
@@ -391,6 +397,11 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
             config={{ appointments: { label: "Appointments", color: "hsl(var(--primary))" } }}
             className="h-[320px]"
           >
+            {appointmentsByDay.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No appointment data yet.
+              </div>
+            ) : (
             <AreaChart data={appointmentsByDay} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="appointmentsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -417,6 +428,7 @@ if (typeof rawDate === "string" && rawDate.length >= 10) {
                 fillOpacity={1}
               />
             </AreaChart>
+            )}
           </ChartContainer>
         </div>
       </div>

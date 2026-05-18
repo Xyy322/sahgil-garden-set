@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, onSnapshot, orderBy, query, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
-import { Filter } from "lucide-react";
+
 
 type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
 
@@ -191,23 +191,20 @@ export function AdminOrders() {
     <div className="space-y-8">
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          </div>
           <div>
-  <h2 className="text-2xl md:text-3xl font-bold text-card-foreground">Recent Orders</h2>
-  <p className="text-sm text-muted-foreground">Review and update customer order lifecycle statuses.</p>
-</div>
-<div className="flex items-center gap-2">
-  <input
-    type="text"
-    placeholder="Search orders..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-  />
-  <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent">
-    <Filter className="h-4 w-4" /> Live
-  </button>
-</div>
+            <h2 className="text-2xl md:text-3xl font-bold text-card-foreground">Recent Orders</h2>
+            <p className="text-sm text-muted-foreground">Review and update customer order lifecycle statuses.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            />
+          </div>
+        </div>
 
         {ordersError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 font-medium">

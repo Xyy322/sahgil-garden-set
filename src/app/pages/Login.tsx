@@ -6,11 +6,11 @@ import { useNavigate } from "react-router-dom";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { db } from "../../utils/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
-import { mapFirebaseAuthError } from "../../utils/firebase/errormapper";
+import { mapFirebaseAuthError } from "../../utils/firebase/errorMapper";
 import { ErrorModal } from "../components/ErrorModal";
 
 export function Login() {
-  // State for email, password, and error messages.
+  // State for email, password, and error messages. 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

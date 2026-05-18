@@ -44,7 +44,7 @@ export function AppointmentsManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved">("pending");
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "completed">("pending");
 
   // On mount, subscribe to real-time updates from Firestore for all appointments.
   useEffect(() => {
@@ -156,7 +156,7 @@ export function AppointmentsManagement() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["all", "pending", "approved"] as const).map((status) => (
+            {(["all", "pending", "approved", "completed"] as const).map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}

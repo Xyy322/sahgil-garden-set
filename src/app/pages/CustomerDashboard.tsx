@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { db } from "../../utils/firebase/config";
-import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { useCart } from "../components/CartContext";
 import { Cart } from "../components/Cart";
 import { Appointment, formatTime, formatDisplayDate } from "../../utils/appointmentUtils";
@@ -100,23 +100,22 @@ export function CustomerDashboard() {
     return () => unsub();
   }, [navigate]);
 
-  // Fetch orders from Firestore for the logged-in user.
+  // Fetch orders from Firestore for the logged-in user (real-time).
   useEffect(() => {
     if (!user?.uid) return;
 
-    const fetchOrders = async () => {
-      try {
-        const ordersRef = collection(db, "orders");
-        const q = query(
-          ordersRef,
-          where("userId", "==", user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        const fetchedOrders: Order[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedOrders.push({
-            id: doc.id,
+    const q = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedOrders: Order[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
             userId: data.userId || '',
             shippingInfo: data.shippingInfo || { fullName: '', phone: '', address: '', city: '', postalCode: '' },
             total: data.total || 0,
@@ -124,7 +123,7 @@ export function CustomerDashboard() {
             paymentMethod: data.paymentMethod || 'Cash on Delivery',
             items: data.items || [],
             createdAt: data.createdAt,
-          } as Order);
+          } as Order;
         });
 
         // Sort by createdAt on client side (newest first)
@@ -136,36 +135,33 @@ export function CustomerDashboard() {
         });
 
         setOrders(fetchedOrders);
-      } catch (error) {
+        setLoadingOrders(false);
+      },
+      (error) => {
         console.error("Error fetching orders:", error);
-      } finally {
         setLoadingOrders(false);
       }
-    };
+    );
 
-    fetchOrders();
+    return () => unsub();
   }, [user?.uid]);
 
-  // Fetch appointments from Firestore for the logged-in user.
+  // Fetch appointments from Firestore for the logged-in user (real-time).
   useEffect(() => {
     if (!user?.uid) return;
 
-    const fetchAppointments = async () => {
-      try {
-        const appointmentsRef = collection(db, "appointments");
-        const q = query(
-          appointmentsRef,
-          where("userId", "==", user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        const fetchedAppointments: Appointment[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedAppointments.push({
-            id: doc.id,
-            ...data,
-          } as Appointment);
-        });
+    const q = query(
+      collection(db, "appointments"),
+      where("userId", "==", user.uid)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedAppointments: Appointment[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Appointment[];
 
         // Sort by date (newest first)
         fetchedAppointments.sort((a, b) => {
@@ -173,14 +169,15 @@ export function CustomerDashboard() {
         });
 
         setAppointments(fetchedAppointments);
-      } catch (error) {
+        setLoadingAppointments(false);
+      },
+      (error) => {
         console.error("Error fetching appointments:", error);
-      } finally {
         setLoadingAppointments(false);
       }
-    };
+    );
 
-    fetchAppointments();
+    return () => unsub();
   }, [user?.uid]);
 
   // Handle confirmed appointment cancellation.

@@ -32,16 +32,21 @@ export function Contact() {
     try {
       // validation
       if (!formData.name || !authEmail || !formData.message) {
+        if (!authEmail) {
+          throw new Error('Please log in to send an inquiry.');
+        }
         throw new Error('Please fill in all required fields');
       }
 
       const now = Timestamp.now();
 
               await addDoc(collection(db, "inquiries"), {
+          userId: getAuth().currentUser?.uid ?? "",
           firstName: formData.name.trim().split(" ")[0] || formData.name.trim(),
           lastName: formData.name.trim().split(" ").slice(1).join(" ") || "",
           email: authEmail,
           inquiryType: "general",
+          message: formData.message.trim(),
           status: "pending",
           messages: [
           {
@@ -65,7 +70,7 @@ export function Contact() {
       });
 
     } catch (err) {
-      setError('Failed to send message. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
     } finally {
       setLoading(false);
     }

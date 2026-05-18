@@ -25,7 +25,7 @@ export const createNotification = async ({
     type,
     relatedId: statusRefId,
     relatedCollection: type === "order" ? "orders" : "appointments",
-    isRead: false,
+    read: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

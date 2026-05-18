@@ -33,6 +33,8 @@ import {
   addDoc,
   getDocs,
   serverTimestamp,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 
 import { createNotification } from "../../utils/createNotification";
@@ -82,9 +84,26 @@ export function LandscapingBooking() {
   useEffect(() => {
     const auth = getAuth();
 
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setAuthEmail(firebaseUser?.email || "");
+
+      // Pre-fill form from Firestore profile
+      if (firebaseUser) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setFormData((prev) => ({
+              ...prev,
+              fullName: data.fullName || "",
+              phone: data.phoneNumber || "",
+            }));
+          }
+        } catch {
+          // silently ignore — form stays empty, user fills it in
+        }
+      }
     });
 
     return () => unsub();
@@ -197,7 +216,30 @@ export function LandscapingBooking() {
           <CheckCircle className="w-10 h-10 text-emerald-600" />
         </div>
         <h1 className="text-2xl font-bold text-stone-900 mb-2">Appointment Booked!</h1>
-        <p className="text-stone-500 mb-2">Your landscaping consultation has been submitted.</p>
+        <p className="text-stone-500 mb-6">Your landscaping consultation has been submitted.</p>
+
+        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6 text-left space-y-2">
+          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Booking Details</p>
+          <div className="flex justify-between text-sm">
+            <span className="text-stone-500">Date</span>
+            <span className="font-medium text-stone-800">
+              {selectedDate ? formatDisplayDate(toDateKey(selectedDate)) : "—"}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-stone-500">Time</span>
+            <span className="font-medium text-stone-800">
+              {selectedTime ? formatTime(selectedTime) : "—"}
+            </span>
+          </div>
+          {formData.fullName && (
+            <div className="flex justify-between text-sm">
+              <span className="text-stone-500">Name</span>
+              <span className="font-medium text-stone-800">{formData.fullName}</span>
+            </div>
+          )}
+        </div>
+
         <p className="text-sm text-stone-400 mb-8">We will confirm your appointment within 24 hours.</p>
 
         <div className="flex flex-col gap-3">

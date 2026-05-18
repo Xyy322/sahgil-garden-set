@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
-import { mapFirebaseAuthError } from "../../utils/firebase/errormapper";
+import { mapFirebaseAuthError } from "../../utils/firebase/errorMapper";
 import { ErrorModal } from "../components/ErrorModal";
 import { usePHPhone } from "../hooks/usePHPhone";
 import { Input } from "../components/ui/input";

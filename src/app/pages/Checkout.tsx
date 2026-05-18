@@ -91,7 +91,7 @@ export function Checkout() {
 
   paymentMethod: form.paymentMethod,
 
-  status: "pending",
+  status: "Pending",
 
   createdAt: serverTimestamp(),
   updatedAt: serverTimestamp(),

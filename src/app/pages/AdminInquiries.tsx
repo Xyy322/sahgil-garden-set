@@ -198,79 +198,116 @@ export function AdminInquiries() {
     <div className="space-y-6">
 
       {/* LIST */}
-      <div className="bg-white p-6 rounded-2xl">
-        <h2 className="text-xl font-bold mb-4">Inquiries</h2>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-8">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-card-foreground">Inquiries</h2>
+            <p className="text-sm text-muted-foreground">Manage and respond to customer inquiries.</p>
+          </div>
+          <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
+            {inquiries.length} total
+          </span>
+        </div>
 
         {inquiries.length === 0 ? (
-          <p>No inquiries found.</p>
+          <div className="rounded-xl border border-border bg-background py-10 text-center text-sm text-muted-foreground">
+            No inquiries found.
+          </div>
         ) : (
-          inquiries.map((inq) => (
-            <div key={inq.id} className="border p-4 rounded mb-3">
-              <div className="flex justify-between">
-                <div>
-                  <p className="font-semibold">
-                    {inq.firstName} {inq.lastName}
-                  </p>
-                  <p className="text-sm">{inq.email}</p>
-
-                  <span className={`text-xs px-2 py-1 border rounded ${statusBadge(inq.status)}`}>
-                    {inq.status}
-                  </span>
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={() => setSelectedInquiry(inq)}>
-                    View
-                  </button>
-
-                  {inq.status !== "closed" && (
-                    <button onClick={() => updateStatus(inq.id, "closed")}>
-                      Close
-                    </button>
-                  )}
+          <div className="space-y-3">
+            {inquiries.map((inq) => (
+              <div key={inq.id} className="rounded-2xl border border-border bg-background p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="font-semibold text-foreground">
+                      {inq.firstName} {inq.lastName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{inq.email}</p>
+                    {inq.message && (
+                      <p className="text-sm text-foreground line-clamp-2">{inq.message}</p>
+                    )}
+                    <span className={`inline-block text-xs px-2.5 py-1 border rounded-full font-medium ${statusBadge(inq.status)}`}>
+                      {inq.status.charAt(0).toUpperCase() + inq.status.slice(1)}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedInquiry(inq)}
+                      disabled={updatingId === inq.id}
+                    >
+                      View
+                    </Button>
+                    {inq.status !== "closed" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => updateStatus(inq.id, "closed")}
+                        disabled={updatingId === inq.id}
+                      >
+                        Close
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              <p className="mt-2 text-sm">{inq.message}</p>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
       {/* MODAL */}
       <Dialog open={!!selectedInquiry} onOpenChange={() => setSelectedInquiry(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Conversation</DialogTitle>
+        <DialogContent className="max-w-lg p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b border-border">
+            <DialogTitle className="text-lg font-bold text-card-foreground">
+              {selectedLiveInquiry?.firstName} {selectedLiveInquiry?.lastName}
+              <span className={`ml-2 text-xs font-medium px-2 py-0.5 border rounded-full ${statusBadge(selectedLiveInquiry?.status ?? "pending")}`}>
+                {selectedLiveInquiry?.status}
+              </span>
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">{selectedLiveInquiry?.email}</p>
           </DialogHeader>
 
           {selectedLiveInquiry && (
             <>
-              <ScrollArea className="h-60 border p-3">
-                {(selectedLiveInquiry.messages || []).map((m, i) => (
-                  <div key={i} className="mb-2">
-                    <p className="font-semibold text-sm">
-                      {m.sender === "admin" ? "Admin" : (m.senderName || "Customer")}
-                    </p>
-                    <p className="text-sm">{m.content}</p>
-                  </div>
-                ))}
+              <ScrollArea className="h-64 border-b border-border px-6 py-4 bg-muted/30">
+                {(selectedLiveInquiry.messages || []).length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">No messages yet.</p>
+                ) : (
+                  (selectedLiveInquiry.messages || []).map((m, i) => (
+                    <div key={i} className={`mb-4 flex flex-col ${m.sender === "admin" ? "items-end" : "items-start"}`}>
+                      <div className={`rounded-xl px-4 py-2 max-w-xs break-words text-sm ${
+                        m.sender === "admin"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background border border-border text-foreground"
+                      }`}>
+                        {m.content}
+                      </div>
+                      <span className="text-xs mt-1 text-muted-foreground">
+                        {m.sender === "admin" ? (m.senderName || "Admin") : (m.senderName || "Customer")}
+                      </span>
+                    </div>
+                  ))
+                )}
               </ScrollArea>
 
-              <Textarea
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Reply..."
-              />
-
-              <div className="flex justify-end gap-2 mt-2">
-                <Button onClick={() => setSelectedInquiry(null)}>
-                  Close
-                </Button>
-
-                <Button onClick={sendReply} disabled={sendingReply}>
-                  Send
-                </Button>
+              <div className="p-6 flex flex-col gap-3">
+                <Textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Type your reply..."
+                  className="resize-none min-h-[72px]"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setSelectedInquiry(null)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={sendReply} disabled={sendingReply || !replyText.trim()}>
+                    {sendingReply ? "Sending..." : "Send Reply"}
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -279,4 +316,3 @@ export function AdminInquiries() {
     </div>
   );
 }
-
