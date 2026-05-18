@@ -35,6 +35,8 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { createNotification } from "../../utils/createNotification";
@@ -110,30 +112,37 @@ export function LandscapingBooking() {
   }, []);
 
   // LOAD APPOINTMENTS
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const snap = await getDocs(collection(db, "appointments"));
+  // LOAD APPROVED APPOINTMENTS FOR AVAILABILITY CHECKING
+useEffect(() => {
+  const load = async () => {
+    try {
+      const approvedAppointmentsQuery = query(
+        collection(db, "appointments"),
+        where("status", "==", "approved")
+      );
 
-        const data: Appointment[] = snap.docs.map((doc) => {
-          const d = doc.data();
-          return {
-            id: doc.id,
-            ...(d as Omit<Appointment, "id">),
-          };
-        });
+      const snap = await getDocs(approvedAppointmentsQuery);
 
-        setAppointments(data);
-        setBlockedDates(getAllBlockedDates(data));
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const data: Appointment[] = snap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          ...(d as Omit<Appointment, "id">),
+        };
+      });
 
-    load();
-  }, []);
+      setAppointments(data);
+      setBlockedDates(getAllBlockedDates(data));
+    } catch (e) {
+      console.error(e);
+      setError("Unable to load appointment availability.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  load();
+}, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -4,14 +4,22 @@
 import { Package, Calendar, Clock, MapPin, Search, ChevronDown, ChevronUp, Truck, CheckCircle, Package as PackageIcon, CreditCard, AlertCircle, Leaf } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+
 import { db } from "../../utils/firebase/config";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { useCart } from "../components/CartContext";
 import { Cart } from "../components/Cart";
 import { Appointment, formatTime, formatDisplayDate } from "../../utils/appointmentUtils";
 import { ChatBubble } from "../components/chat/ChatBubble";
-import { Timestamp } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
 import { createNotification } from "../../utils/createNotification";
 import {
   AlertDialog,
@@ -68,9 +76,9 @@ export function CustomerDashboard() {
   // Access addItem to allow reordering or cart actions from dashboard.
   const { addItem } = useCart();
   const navigate = useNavigate();
+  const { user, role, loading: authLoading } = useAuth();
 
-  // User state for authentication and personalization.
-  const [user, setUser] = useState<User | null>(null);
+  
 
   // Orders and appointments state for display.
   const [orders, setOrders] = useState<Order[]>([]);
@@ -87,27 +95,37 @@ export function CustomerDashboard() {
   // Cancel appointment dialog state.
   const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(null);
 
-  // On mount, check authentication and redirect if not logged in.
   useEffect(() => {
-    const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        navigate("/login");
-      } else {
-        setUser(user);
-      }
-    });
-    return () => unsub();
-  }, [navigate]);
+  if (authLoading) {
+    return;
+  }
+
+  if (!user || role !== "customer") {
+    setOrders([]);
+    setAppointments([]);
+    setLoadingOrders(false);
+    setLoadingAppointments(false);
+  }
+}, [authLoading, user, role]);
 
   // Fetch orders from Firestore for the logged-in user (real-time).
   useEffect(() => {
-    if (!user?.uid) return;
+  if (authLoading) {
+    return;
+  }
 
-    const q = query(
-      collection(db, "orders"),
-      where("userId", "==", user.uid)
-    );
+  if (!user?.uid || role !== "customer") {
+    setOrders([]);
+    setLoadingOrders(false);
+    return;
+  }
+
+  setLoadingOrders(true);
+
+  const q = query(
+    collection(db, "orders"),
+    where("userId", "==", user.uid)
+  );
 
     const unsub = onSnapshot(
       q,
@@ -144,16 +162,26 @@ export function CustomerDashboard() {
     );
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [authLoading, user?.uid, role]);
 
   // Fetch appointments from Firestore for the logged-in user (real-time).
   useEffect(() => {
-    if (!user?.uid) return;
+  if (authLoading) {
+    return;
+  }
 
-    const q = query(
-      collection(db, "appointments"),
-      where("userId", "==", user.uid)
-    );
+  if (!user?.uid || role !== "customer") {
+    setAppointments([]);
+    setLoadingAppointments(false);
+    return;
+  }
+
+  setLoadingAppointments(true);
+
+  const q = query(
+    collection(db, "appointments"),
+    where("userId", "==", user.uid)
+  );
 
     const unsub = onSnapshot(
       q,
@@ -178,7 +206,7 @@ export function CustomerDashboard() {
     );
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [authLoading, user?.uid, role]);
 
   // Handle confirmed appointment cancellation.
   const handleConfirmCancel = async () => {
@@ -186,7 +214,7 @@ export function CustomerDashboard() {
 
     await updateDoc(doc(db, "appointments", cancelAppointmentId), {
       status: "cancelled",
-      updatedAt: Timestamp.now(),
+      updatedAt: serverTimestamp(),
     });
 
     if (user?.uid) {
@@ -457,14 +485,16 @@ export function CustomerDashboard() {
                               <div>
                                 <h3 className="font-bold text-stone-800">Landscaping Consultation</h3>
                                 <p className="text-sm text-stone-500 mt-1">
-                                  {formatDisplayDate(apt.date)} at {formatTime(apt.time)}
+                                  {apt.date ? formatDisplayDate(apt.date) : "No date provided"} at{" "}
+{apt.time ? formatTime(apt.time) : "No time provided"}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
                                   statusColors[apt.status as keyof typeof statusColors] || statusColors.pending
                                 }`}>
-                                  {apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
+                                  {(apt.status || "pending").charAt(0).toUpperCase() +
+  (apt.status || "pending").slice(1)}
                                 </span>
                                 {isExpanded
                                   ? <ChevronUp className="w-5 h-5 text-stone-400" />
@@ -493,12 +523,14 @@ export function CustomerDashboard() {
                                 <h4 className="font-bold text-stone-800 mb-2">Appointment Details</h4>
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
-                                    <span className="text-stone-600">Date:</span>
-                                    <span className="font-medium text-stone-800">{formatDisplayDate(apt.date)}</span>
+                                    <span className="font-medium text-stone-800">
+  {apt.date ? formatDisplayDate(apt.date) : "No date provided"}
+</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-stone-600">Time:</span>
-                                    <span className="font-medium text-stone-800">{formatTime(apt.time)}</span>
+                                    <span className="font-medium text-stone-800">
+  {apt.time ? formatTime(apt.time) : "No time provided"}
+</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-stone-600">Type:</span>

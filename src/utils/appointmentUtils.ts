@@ -46,6 +46,13 @@ export function formatDateKey(date: Date): string {
  * PARSE YYYY-MM-DD → LOCAL DATE (SAFE, NO UTC SHIFT)
  */
 export function parseDateKey(dateStr: string): Date {
+  if (
+    typeof dateStr !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+  ) {
+    return new Date(NaN);
+  }
+
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
@@ -71,9 +78,20 @@ export function getAllBlockedDates(appointments: Appointment[]): string[] {
   const blocked = new Set<string>();
 
   appointments
-    .filter((a) => a.status === "approved" || a.status === "pending")
+    .filter((a) => {
+      return (
+        (a.status === "approved" || a.status === "pending") &&
+        typeof a.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(a.date)
+      );
+    })
     .forEach((a) => {
       const base = parseDateKey(a.date);
+
+      if (Number.isNaN(base.getTime())) {
+        return;
+      }
+
       getBlockedDates(base).forEach((d) => blocked.add(d));
     });
 
@@ -170,6 +188,10 @@ export function formatTime(time: string): string {
 export function formatDisplayDate(dateStr: string): string {
   const date = parseDateKey(dateStr);
 
+  if (Number.isNaN(date.getTime())) {
+    return "No date provided";
+  }
+
   return date.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -185,10 +207,15 @@ export function compareAppointmentsByDate(
   a: Appointment,
   b: Appointment
 ) {
-  const diff =
-    parseDateKey(a.date).getTime() - parseDateKey(b.date).getTime();
+  const aDate = parseDateKey(a.date);
+  const bDate = parseDateKey(b.date);
+
+  const aTime = Number.isNaN(aDate.getTime()) ? Number.MAX_SAFE_INTEGER : aDate.getTime();
+  const bTime = Number.isNaN(bDate.getTime()) ? Number.MAX_SAFE_INTEGER : bDate.getTime();
+
+  const diff = aTime - bTime;
 
   if (diff !== 0) return diff;
 
-  return a.time.localeCompare(b.time);
+  return (a.time || "").localeCompare(b.time || "");
 }
