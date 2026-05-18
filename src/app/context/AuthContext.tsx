@@ -11,12 +11,17 @@ import { auth, db } from "../../utils/firebase/config";
 
 export type AppRole = "admin" | "customer";
 
-type UserProfile = {
+export interface UserProfile {
   uid: string;
-  email?: string;
-  fullName?: string;
+  email: string;
+  fullName: string;
   role: AppRole;
-};
+  phoneNumber?: string;
+  address?: string;
+  hasPassword?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
 
 type AuthContextValue = {
   user: User | null;

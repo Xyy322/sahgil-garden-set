@@ -17,7 +17,6 @@ import { Checkout } from "./pages/Checkout";
 import { LandscapingBooking } from "./pages/LandscapingBooking";
 import { Profile } from "./pages/Profile";
 import { ProfileEdit } from "./pages/ProfileEdit";
-import { PasswordChange } from "./pages/PasswordChange";
 import {
   RoleProtectedRoute,
   PublicOnlyRoute,
@@ -91,15 +90,6 @@ export const router = createBrowserRouter([
       element: (
         <RoleProtectedRoute allowedRoles={["customer"]}>
           <ProfileEdit />
-        </RoleProtectedRoute>
-      ),
-    },
-
-    {
-      path: "profile/password",
-      element: (
-        <RoleProtectedRoute allowedRoles={["customer"]}>
-          <PasswordChange />
         </RoleProtectedRoute>
       ),
     },
