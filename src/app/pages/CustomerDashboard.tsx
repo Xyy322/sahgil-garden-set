@@ -18,7 +18,6 @@ import {
 import { useCart } from "../components/CartContext";
 import { Cart } from "../components/Cart";
 import { Appointment, formatTime, formatDisplayDate } from "../../utils/appointmentUtils";
-import { ChatBubble } from "../components/chat/ChatBubble";
 import { useAuth } from "../context/AuthContext";
 import { createNotification } from "../../utils/createNotification";
 import {
@@ -235,7 +234,6 @@ export function CustomerDashboard() {
 
   return (
     <div className="bg-[#f9f7f4] min-h-screen py-12 relative z-0">
-      <ChatBubble />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
           <div>

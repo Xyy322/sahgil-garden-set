@@ -19,15 +19,4 @@ export interface Inquiry {
   createdAt?: Timestamp;
 }
 
-// Hook response type
-export interface UseInquiryChatReturn {
-  inquiry: Inquiry | null;
-  inquiries: Inquiry[];
-  selectedInquiryId: string | null;
-  selectInquiry: (id: string) => void;
-  messages: Message[];
-  sendMessage: (content: string) => Promise<void>;
-  isLoading: boolean;
-  isClosed: boolean;
-  refetch: () => void;
-}
+
