@@ -1,20 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar } from "../components/ui/calendar";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
 import { Card } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import {
@@ -23,33 +15,32 @@ import {
   Calendar as CalendarIcon,
   Clock3,
   UserRound,
-  FileText,
-  Info,
 } from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import {
   collection,
-  addDoc,
   getDocs,
   serverTimestamp,
   doc,
-  getDoc,
   query,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 import { createNotification } from "../../utils/createNotification";
+import { useAuth } from "../context/AuthContext";
 
 import {
   Appointment,
   TIME_SLOTS,
   getAllBlockedDates,
-  isDateAvailable,
   isTimeSlotAvailable,
   formatTime,
   formatDisplayDate,
   validateAppointment,
+  getBlockedDates,
+  parseDateKey,
 } from "../../utils/appointmentUtils";
 
 function toDateKey(date: Date): string {
@@ -59,11 +50,43 @@ function toDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function isValidDateKey(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeAppointment(id: string, data: any): Appointment {
+  return {
+    id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+    customerName: typeof data.customerName === "string" ? data.customerName : "",
+    customerEmail:
+      typeof data.customerEmail === "string" ? data.customerEmail : "",
+    customerPhone:
+      typeof data.customerPhone === "string" ? data.customerPhone : "",
+    date: isValidDateKey(data.date) ? data.date : "",
+    time:
+      typeof data.time === "string" && /^\d{2}:\d{2}$/.test(data.time)
+        ? data.time
+        : "",
+    serviceType: "landscaping-consultation",
+    description: typeof data.description === "string" ? data.description : "",
+    status:
+      data.status === "pending" ||
+      data.status === "approved" ||
+      data.status === "rejected" ||
+      data.status === "completed" ||
+      data.status === "cancelled"
+        ? data.status
+        : "pending",
+    lockDates: Array.isArray(data.lockDates) ? data.lockDates : [],
+    createdAt: data.createdAt ?? null,
+    updatedAt: data.updatedAt ?? null,
+  };
+}
+
 export function LandscapingBooking() {
   const navigate = useNavigate();
-
-  const [user, setUser] = useState<User | null>(null);
-  const [authEmail, setAuthEmail] = useState("");
+  const { user, profile, role, loading: authLoading } = useAuth();
 
   const [step, setStep] = useState<"booking" | "success">("booking");
   const [selectedDate, setSelectedDate] = useState<Date>();
@@ -82,79 +105,116 @@ export function LandscapingBooking() {
     description: "",
   });
 
-  // ✅ FIXED AUTH (single source of truth)
+  const authEmail = user?.email || profile?.email || "";
+
+  const defaultFormData = useMemo(
+    () => ({
+      fullName: profile?.fullName || user?.displayName || "",
+      phone: profile?.phoneNumber || "",
+      description: "",
+    }),
+    [profile?.fullName, profile?.phoneNumber, user?.displayName]
+  );
+
   useEffect(() => {
-    const auth = getAuth();
-
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthEmail(firebaseUser?.email || "");
-
-      // Pre-fill form from Firestore profile
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            setFormData((prev) => ({
-              ...prev,
-              fullName: data.fullName || "",
-              phone: data.phoneNumber || "",
-            }));
-          }
-        } catch {
-          // silently ignore — form stays empty, user fills it in
-        }
-      }
-    });
-
-    return () => unsub();
-  }, []);
-
-  // LOAD APPOINTMENTS
-  // LOAD APPROVED APPOINTMENTS FOR AVAILABILITY CHECKING
-useEffect(() => {
-  const load = async () => {
-    try {
-      const approvedAppointmentsQuery = query(
-        collection(db, "appointments"),
-        where("status", "==", "approved")
-      );
-
-      const snap = await getDocs(approvedAppointmentsQuery);
-
-      const data: Appointment[] = snap.docs.map((doc) => {
-        const d = doc.data();
-        return {
-          id: doc.id,
-          ...(d as Omit<Appointment, "id">),
-        };
-      });
-
-      setAppointments(data);
-      setBlockedDates(getAllBlockedDates(data));
-    } catch (e) {
-      console.error(e);
-      setError("Unable to load appointment availability.");
-    } finally {
-      setLoading(false);
+    if (authLoading) {
+      return;
     }
-  };
 
-  load();
-}, []);
+    if (!user || role !== "customer") {
+      setLoading(false);
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      fullName: prev.fullName || defaultFormData.fullName,
+      phone: prev.phone || defaultFormData.phone,
+    }));
+  }, [authLoading, user, role, defaultFormData]);
+
+  useEffect(() => {
+    const loadAvailability = async () => {
+      if (authLoading) {
+        return;
+      }
+
+      if (!user || role !== "customer") {
+        setAppointments([]);
+        setBlockedDates([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const approvedAppointmentsQuery = query(
+          collection(db, "appointments"),
+          where("status", "==", "approved")
+        );
+
+        const [appointmentsSnap, locksSnap] = await Promise.all([
+          getDocs(approvedAppointmentsQuery),
+          getDocs(collection(db, "appointmentLocks")),
+        ]);
+
+        const approvedAppointments = appointmentsSnap.docs.map((document) =>
+          normalizeAppointment(document.id, document.data())
+        );
+
+        const lockedDates = locksSnap.docs
+          .map((lockDoc) => lockDoc.id)
+          .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date));
+
+        setAppointments(approvedAppointments);
+        setBlockedDates(
+          Array.from(
+            new Set([...lockedDates, ...getAllBlockedDates(approvedAppointments)])
+          )
+        );
+      } catch (err) {
+        console.error("Availability loading error:", err);
+        setError("Unable to load appointment availability.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAvailability();
+  }, [authLoading, user, role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!selectedDate || !selectedTime) {
-      setError("Please select date and time");
+    if (authLoading) {
+      setError("Please wait while your account is being verified.");
       return;
     }
 
-    if (!user) {
-      setError("Please login first");
+    if (!user || role !== "customer") {
+      setError("Please log in as a customer first.");
+      return;
+    }
+
+    if (!selectedDate || !selectedTime) {
+      setError("Please select date and time.");
+      return;
+    }
+
+    const cleanName = formData.fullName.trim();
+    const cleanPhone = formData.phone.trim();
+    const cleanDescription = formData.description.trim();
+
+    if (!cleanName) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!cleanPhone) {
+      setError("Please enter your phone number.");
       return;
     }
 
@@ -170,118 +230,173 @@ useEffect(() => {
       return;
     }
 
+    const dateKey = toDateKey(selectedDate);
+
+    if (blockedDates.includes(dateKey)) {
+      setError("Selected date is no longer available. Please choose another date.");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
-      const dateKey = toDateKey(selectedDate);
+      const appointmentRef = doc(collection(db, "appointments"));
+      const batch = writeBatch(db);
 
-      const appointmentData = {
-  userId: user?.uid || "guest",
+      const lockDates = getBlockedDates(parseDateKey(dateKey));
 
-  customerName: formData.fullName,
-  customerEmail: authEmail,
-  customerPhone: formData.phone,
+      batch.set(appointmentRef, {
+        userId: user.uid,
 
-  date: dateKey,
-  time: selectedTime,
-  serviceType: "landscaping-consultation",
-  description: formData.description,
+        customerName: cleanName,
+        customerEmail: authEmail,
+        customerPhone: cleanPhone,
 
-  status: "pending",
+        date: dateKey,
+        time: selectedTime,
+        serviceType: "landscaping-consultation",
+        description: cleanDescription,
 
-  createdAt: serverTimestamp(),
-  updatedAt: serverTimestamp(),
-};
+        status: "pending",
+        lockDates,
 
-      const docRef = await addDoc(
-        collection(db, "appointments"),
-        appointmentData
-      );
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      lockDates.forEach((date) => {
+        const lockRef = doc(db, "appointmentLocks", date);
+
+        batch.set(lockRef, {
+          date,
+          appointmentId: appointmentRef.id,
+          userId: user.uid,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      await batch.commit();
 
       await createNotification({
         userId: user.uid,
         title: "Appointment created",
-        message: `Scheduled on ${dateKey} at ${selectedTime}`,
+        message: `Your appointment on ${dateKey} at ${selectedTime} was created.`,
         type: "appointment",
-        statusRefId: docRef.id,
+        statusRefId: appointmentRef.id,
       });
 
+      setBlockedDates((prev) => Array.from(new Set([...prev, ...lockDates])));
       setStep("success");
     } catch (err) {
-      console.error(err);
-      setError("Failed to book appointment");
+      console.error("Appointment booking error:", err);
+      setError("Selected date is no longer available. Please choose another date.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-stone-600">
+        Loading appointment form...
+      </div>
+    );
+  }
 
- if (step === "success") {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-10 h-10 text-emerald-600" />
-        </div>
-        <h1 className="text-2xl font-bold text-stone-900 mb-2">Appointment Booked!</h1>
-        <p className="text-stone-500 mb-6">Your landscaping consultation has been submitted.</p>
-
-        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6 text-left space-y-2">
-          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Booking Details</p>
-          <div className="flex justify-between text-sm">
-            <span className="text-stone-500">Date</span>
-            <span className="font-medium text-stone-800">
-              {selectedDate ? formatDisplayDate(toDateKey(selectedDate)) : "—"}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-stone-500">Time</span>
-            <span className="font-medium text-stone-800">
-              {selectedTime ? formatTime(selectedTime) : "—"}
-            </span>
-          </div>
-          {formData.fullName && (
-            <div className="flex justify-between text-sm">
-              <span className="text-stone-500">Name</span>
-              <span className="font-medium text-stone-800">{formData.fullName}</span>
-            </div>
-          )}
-        </div>
-
-        <p className="text-sm text-stone-400 mb-8">We will confirm your appointment within 24 hours.</p>
-
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={() => navigate("/dashboard/customer")}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
-          >
-            Go to Dashboard
-          </button>
-          <button
-            onClick={() => {
-              setStep("booking");
-              setSelectedDate(undefined);
-              setSelectedTime("");
-              setFormData({ fullName: "", phone: "", description: "" });
-            }}
-            className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
-          >
-            Book Another Appointment
-          </button>
+  if (!user || role !== "customer") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+        <div className="max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
+          Please log in as a customer to book an appointment.
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
+  if (step === "success") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-emerald-600" />
+          </div>
+
+          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+            Appointment Booked!
+          </h1>
+
+          <p className="text-stone-500 mb-6">
+            Your landscaping consultation has been submitted.
+          </p>
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6 text-left space-y-2">
+            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">
+              Booking Details
+            </p>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-stone-500">Date</span>
+              <span className="font-medium text-stone-800">
+                {selectedDate ? formatDisplayDate(toDateKey(selectedDate)) : "—"}
+              </span>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-stone-500">Time</span>
+              <span className="font-medium text-stone-800">
+                {selectedTime ? formatTime(selectedTime) : "—"}
+              </span>
+            </div>
+
+            {formData.fullName && (
+              <div className="flex justify-between text-sm">
+                <span className="text-stone-500">Name</span>
+                <span className="font-medium text-stone-800">
+                  {formData.fullName}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <p className="text-sm text-stone-400 mb-8">
+            We will confirm your appointment within 24 hours.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate("/dashboard/customer")}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
+            >
+              Go to Dashboard
+            </button>
+
+            <button
+              onClick={() => {
+                setStep("booking");
+                setSelectedDate(undefined);
+                setSelectedTime("");
+                setFormData(defaultFormData);
+              }}
+              className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
+            >
+              Book Another Appointment
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen py-8 px-4 bg-[#f9f7f4]">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-stone-900">Book a Landscaping Consultation</h1>
+        <h1 className="text-3xl font-bold mb-8 text-stone-900">
+          Book a Landscaping Consultation
+        </h1>
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Calendar & Time Selection */}
           <Card className="p-6 h-fit">
             <div className="space-y-6">
               <div>
@@ -289,15 +404,22 @@ useEffect(() => {
                   <CalendarIcon className="w-5 h-5 text-emerald-600" />
                   Select Date
                 </h2>
+
                 <div className="flex justify-center">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={setSelectedDate}
+                    onSelect={(date) => {
+                      setSelectedDate(date);
+                      setSelectedTime("");
+                    }}
                     disabled={(date) => {
                       const now = new Date();
                       now.setHours(0, 0, 0, 0);
-                      return date < now || blockedDates.includes(toDateKey(date));
+
+                      return (
+                        date < now || blockedDates.includes(toDateKey(date))
+                      );
                     }}
                     className="rounded-lg border border-stone-200"
                   />
@@ -310,6 +432,7 @@ useEffect(() => {
                     <Clock3 className="w-5 h-5 text-emerald-600" />
                     Select Time
                   </h2>
+
                   <div className="grid grid-cols-2 gap-2">
                     {TIME_SLOTS.map((time) => {
                       const available = isTimeSlotAvailable(
@@ -317,8 +440,10 @@ useEffect(() => {
                         time,
                         appointments
                       );
+
                       return (
                         <button
+                          type="button"
                           key={time}
                           onClick={() => setSelectedTime(time)}
                           disabled={!available}
@@ -326,8 +451,8 @@ useEffect(() => {
                             selectedTime === time
                               ? "bg-emerald-600 text-white shadow-md"
                               : available
-                                ? "bg-stone-100 text-stone-900 hover:bg-stone-200"
-                                : "bg-stone-50 text-stone-400 cursor-not-allowed"
+                              ? "bg-stone-100 text-stone-900 hover:bg-stone-200"
+                              : "bg-stone-50 text-stone-400 cursor-not-allowed"
                           }`}
                         >
                           {formatTime(time)}
@@ -341,14 +466,14 @@ useEffect(() => {
               {selectedDate && selectedTime && (
                 <Alert className="bg-emerald-50 border-emerald-200">
                   <AlertDescription className="text-emerald-900">
-                    ✓ Scheduled for {formatDisplayDate(toDateKey(selectedDate))} at {formatTime(selectedTime)}
+                    ✓ Scheduled for {formatDisplayDate(toDateKey(selectedDate))} at{" "}
+                    {formatTime(selectedTime)}
                   </AlertDescription>
                 </Alert>
               )}
             </div>
           </Card>
 
-          {/* Booking Form */}
           <Card className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -406,7 +531,7 @@ useEffect(() => {
                 />
               </div>
 
-              <Button 
+              <Button
                 type="submit"
                 disabled={submitting || !selectedDate || !selectedTime}
                 className="w-full"

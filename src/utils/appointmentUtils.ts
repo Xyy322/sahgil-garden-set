@@ -21,6 +21,8 @@ export interface Appointment {
 
   createdAt: any;
   updatedAt: any;
+
+  lockDates?: string[];
 }
 
 /**
