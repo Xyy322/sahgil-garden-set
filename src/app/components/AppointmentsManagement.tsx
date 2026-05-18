@@ -2,7 +2,14 @@
 // It directly affects the system by allowing admins to approve, reject, or update appointments in Firestore.
 // This file integrates with Firebase for real-time updates and uses utility functions for formatting and filtering.
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, updateDoc, doc, query } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  updateDoc,
+  doc,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
 import {
@@ -15,10 +22,75 @@ import {
 import { Check, X, Clock, User, Mail, Phone } from "lucide-react";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
-import { compareAppointmentsByDate } from "../../utils/appointmentUtils";
+import { useAuth } from "../context/AuthContext";
 
 // AppointmentStatus defines the possible states for an appointment.
 type AppointmentStatus = "pending" | "approved" | "rejected" | "completed" | "cancelled";
+const VALID_STATUSES: AppointmentStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
+  "completed",
+  "cancelled",
+];
+
+function isValidStatus(status: unknown): status is AppointmentStatus {
+  return VALID_STATUSES.includes(status as AppointmentStatus);
+}
+
+function normalizeAppointment(id: string, data: Record<string, any>): Appointment {
+  return {
+    id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+
+    customerName:
+      typeof data.customerName === "string" && data.customerName.trim()
+        ? data.customerName
+        : "Unknown customer",
+
+    customerEmail:
+      typeof data.customerEmail === "string" && data.customerEmail.trim()
+        ? data.customerEmail
+        : "No email provided",
+
+    customerPhone:
+      typeof data.customerPhone === "string" && data.customerPhone.trim()
+        ? data.customerPhone
+        : "No phone provided",
+
+    date:
+      typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
+        ? data.date
+        : "",
+
+    time:
+      typeof data.time === "string" && /^\d{2}:\d{2}$/.test(data.time)
+        ? data.time
+        : "",
+
+    serviceType: "landscaping-consultation",
+
+    description: typeof data.description === "string" ? data.description : "",
+
+    status: isValidStatus(data.status) ? data.status : "pending",
+
+    createdAt: data.createdAt ?? null,
+    updatedAt: data.updatedAt ?? null,
+  };
+}
+
+function safeAppointmentSort(a: Appointment, b: Appointment) {
+  const dateA = a.date || "9999-12-31";
+  const dateB = b.date || "9999-12-31";
+
+  const dateCompare = dateA.localeCompare(dateB);
+
+  if (dateCompare !== 0) {
+    return dateCompare;
+  }
+
+  return (a.time || "").localeCompare(b.time || "");
+}
 
 // Returns the appropriate CSS classes for a status badge.
 function statusBadge(status: AppointmentStatus) {
@@ -43,35 +115,64 @@ export function AppointmentsManagement() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { user, role, loading: authLoading } = useAuth();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "completed">("pending");
 
   // On mount, subscribe to real-time updates from Firestore for all appointments.
   useEffect(() => {
-    const q = query(collection(db, "appointments"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const apts = snap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Appointment[];
+  if (authLoading) {
+    return;
+  }
 
-        // Sort appointments by date for easier management.
-        apts.sort(compareAppointmentsByDate);
+  if (!user) {
+    setAppointments([]);
+    setError("You must be logged in as admin to view appointments.");
+    setLoading(false);
+    return;
+  }
+
+  if (role !== "admin") {
+    setAppointments([]);
+    setError("Access denied. Only administrators can view all appointments.");
+    setLoading(false);
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
+  const q = query(collection(db, "appointments"));
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snap) => {
+      try {
+        const apts = snap.docs
+          .map((document) => normalizeAppointment(document.id, document.data()))
+          .sort(safeAppointmentSort);
 
         setAppointments(apts);
-        setLoading(false);
         setError("");
-      },
-      (err) => {
-        setError(err.message || "Failed to load appointments");
+      } catch (parseError) {
+        console.error("Appointment parsing error:", parseError);
+        setError(
+          "Some appointment records contain invalid data. Please check the appointments collection."
+        );
+      } finally {
         setLoading(false);
       }
-    );
+    },
+    (err) => {
+      console.error("Appointments listener error:", err);
+      setAppointments([]);
+      setError(err.message || "Failed to load appointments.");
+      setLoading(false);
+    }
+  );
 
-    return () => unsub();
-  }, []);
+  return () => unsubscribe();
+}, [authLoading, user, role]);
 
   // Handles status changes for an appointment (approve, reject, etc.).
   // This function updates the appointment status in Firestore and triggers a UI update.

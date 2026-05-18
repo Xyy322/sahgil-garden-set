@@ -23,8 +23,20 @@ export const createNotification = async ({
     title,
     message,
     type,
+
+    // New expected field
+    statusRefId,
+
+    // Keep this for compatibility with older code
     relatedId: statusRefId,
-    relatedCollection: type === "order" ? "orders" : "appointments",
+
+    relatedCollection:
+      type === "order"
+        ? "orders"
+        : type === "appointment"
+        ? "appointments"
+        : "inquiries",
+
     read: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
