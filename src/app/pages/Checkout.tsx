@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart, type CartItem } from "../components/CartContext";
 import { db } from "../../utils/firebase/config";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -21,11 +21,11 @@ import { AlertCircle, CheckCircle } from "lucide-react";
 export function Checkout() {
   const { items, clearCart } = useCart();
   const navigate = useNavigate();
+  const { user, profile, role, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -40,16 +40,6 @@ export function Checkout() {
     0
   );
 
-  // ✅ FIXED AUTH HANDLING (stable for hosting builds)
-  useEffect(() => {
-    const auth = getAuth();
-
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
-
-    return () => unsub();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,38 +49,64 @@ export function Checkout() {
       return;
     }
 
-    if (!user) {
-      setError("Please log in to place an order");
-      return;
-    }
+    if (authLoading) {
+  setError("Please wait while your account is being verified.");
+  return;
+}
+
+if (!user || role !== "customer") {
+  setError("Only logged-in customers can place orders.");
+  return;
+}
 
     setLoading(true);
     setError("");
 
     try {
+      const cleanFullName = form.fullName.trim();
+const cleanPhone = form.phone.trim();
+const cleanAddress = form.address.trim();
+const cleanCity = form.city.trim();
+const cleanPostalCode = form.postalCode.trim();
+
+if (!cleanFullName || !cleanPhone || !cleanAddress || !cleanCity || !cleanPostalCode) {
+  setError("Please complete all shipping information.");
+  setLoading(false);
+  return;
+}
+
+if (total <= 0) {
+  setError("Invalid order total.");
+  setLoading(false);
+  return;
+}
       const orderData = {
   userId: user.uid,
+  orderNumber: `SGS-${Date.now()}`,
 
-  items: items.map(item => ({
+  customerName: cleanFullName,
+  customerEmail: user.email || profile?.email || "",
+  customerPhone: cleanPhone,
+  address: `${cleanAddress}, ${cleanCity} ${cleanPostalCode}`,
+
+  items: items.map((item) => ({
     id: item.id,
     name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    image: item.image,
+    price: Number(item.price) || 0,
+    quantity: Number(item.quantity) || 1,
+    image: item.image || "",
   })),
 
   shippingInfo: {
-    fullName: form.fullName,
-    phone: form.phone,
-    address: form.address,
-    city: form.city,
-    postalCode: form.postalCode,
+    fullName: cleanFullName,
+    phone: cleanPhone,
+    address: cleanAddress,
+    city: cleanCity,
+    postalCode: cleanPostalCode,
   },
 
   total,
-
-  paymentMethod: form.paymentMethod,
-
+  paymentMethod: "Cash on Delivery",
   status: "Pending",
 
   createdAt: serverTimestamp(),
@@ -141,7 +157,7 @@ if (orderSuccess) {
             )}
             <div className="flex justify-between text-sm">
               <span className="text-stone-500">Payment</span>
-              <span className="font-medium text-stone-800 capitalize">{form.paymentMethod === "cash" ? "Cash on Delivery" : "Card Payment"}</span>
+              <span className="font-medium text-stone-800 capitalize">Cash on Delivery</span>
             </div>
             <div className="flex justify-between text-sm border-t border-stone-200 pt-2 mt-2">
               <span className="font-semibold text-stone-800">Total Paid</span>
@@ -327,7 +343,6 @@ if (orderSuccess) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="cash">Cash on Delivery</SelectItem>
-                        <SelectItem value="card">Card Payment</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -335,10 +350,10 @@ if (orderSuccess) {
 
                 <Button 
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || authLoading}
                   className="w-full h-12 text-base"
                 >
-                  {loading ? "Placing Order..." : "Place Order"}
+                  {loading || authLoading ? "Placing Order..." : "Place Order"}
                 </Button>
               </form>
             </Card>

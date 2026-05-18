@@ -299,10 +299,10 @@ export function AppointmentsManagement() {
                       </div>
                       <div>
                         <p className="font-semibold text-[#1F4D2E]">
-                          {formatDisplayDate(apt.date)}
+                          {apt.date ? formatDisplayDate(apt.date) : "No date provided"}
                         </p>
                         <p className="text-sm text-[#2F6B3F]">
-                          {formatTime(apt.time)}
+                          {apt.time ? formatTime(apt.time) : "No time provided"}
                         </p>
                       </div>
                     </div>
@@ -384,25 +384,26 @@ export function AppointmentsManagement() {
                 </div>
 
                 {/* Blocked Dates Info */}
-                {apt.status === "approved" && (
-                  <div className="mt-4 border-t border-[#A3B18A]/60 pt-4">
-                    <p className="mb-2 text-xs text-[#2F6B3F]">
-  Blocked dates (selected date + next 2 days):
-</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {getBlockedDates(parseDateKey(apt.date)).map(
-                        (date: string) => (
-                          <span
-                            key={date}
-                            className="rounded-full border border-[#A3B18A] bg-[#EDE6DA] px-2.5 py-1 text-xs text-[#1F4D2E]"
-                          >
-                            {date}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
+{apt.status === "approved" && apt.date && (
+  <div className="mt-4 border-t border-[#A3B18A]/60 pt-4">
+    <p className="mb-2 text-xs text-[#2F6B3F]">
+      Blocked dates (selected date + next 2 days):
+    </p>
+
+    <div className="flex flex-wrap gap-1.5">
+      {getBlockedDates(parseDateKey(apt.date)).map(
+        (date: string, index: number) => (
+          <span
+            key={`${apt.id}-blocked-${date}-${index}`}
+            className="rounded-full border border-[#A3B18A] bg-[#EDE6DA] px-2.5 py-1 text-xs text-[#1F4D2E]"
+          >
+            {date}
+          </span>
+        )
+      )}
+    </div>
+  </div>
+)}
               </div>
             ))}
           </div>

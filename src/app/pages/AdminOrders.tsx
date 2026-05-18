@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, doc, getDoc, onSnapshot, orderBy, query, Timestamp, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
-
+import { useAuth } from "../context/AuthContext";
 
 type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
 
@@ -80,54 +86,89 @@ function formatMoney(value?: number): string {
 }
 
 export function AdminOrders() {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [ordersError, setOrdersError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
-  const [role, setRole] = useState<"admin" | null>(null);
 
-  const auth = getAuth();
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        setRole(userDoc.data().role as "admin");
-      }
-    });
-    return () => unsub();
-  }, [navigate, auth]);
+  const { user, role, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
+  if (authLoading) {
+    return;
+  }
+
+  if (!user) {
+    setOrders([]);
+    setOrdersError("You must be logged in as admin to view orders.");
+    setLoadingOrders(false);
+    return;
+  }
+
+  if (role !== "admin") {
+    setOrders([]);
+    setOrdersError("Access denied. Only administrators can view all orders.");
+    setLoadingOrders(false);
+    return;
+  }
+
+  setLoadingOrders(true);
+  setOrdersError("");
+
+  const q = query(collection(db, "orders"));
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      try {
         const mapped: OrderData[] = snap.docs.map((d) => {
           const data = d.data() as Omit<OrderData, "id">;
+
           return {
             id: d.id,
             ...data,
             items: normalizeItems(data.items),
           };
         });
+
+        mapped.sort((a, b) => {
+          const aTime =
+            a.createdAt instanceof Timestamp
+              ? a.createdAt.toDate().getTime()
+              : a.createdAt instanceof Date
+              ? a.createdAt.getTime()
+              : 0;
+
+          const bTime =
+            b.createdAt instanceof Timestamp
+              ? b.createdAt.toDate().getTime()
+              : b.createdAt instanceof Date
+              ? b.createdAt.getTime()
+              : 0;
+
+          return bTime - aTime;
+        });
+
         setOrders(mapped);
-        setLoadingOrders(false);
         setOrdersError("");
-      },
-      (error) => {
-        setOrdersError(error.message || "Failed to load orders");
+      } catch (error) {
+        console.error("Order parsing error:", error);
+        setOrdersError("Some order records contain invalid data.");
+      } finally {
         setLoadingOrders(false);
       }
-    );
-    return () => unsub();
-  }, []);
+    },
+    (error) => {
+      console.error("Orders listener error:", error);
+      setOrders([]);
+      setOrdersError(error.message || "Failed to load orders.");
+      setLoadingOrders(false);
+    }
+  );
+
+  return () => unsub();
+}, [authLoading, user, role]);
 
   const filteredOrders = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -159,7 +200,7 @@ export function AdminOrders() {
 
       await updateDoc(doc(db, "orders", orderId), {
         status: newStatus,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
 
       if (order.userId && newStatus !== order.status) {
@@ -180,12 +221,6 @@ export function AdminOrders() {
     }
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/login");
-  };
-
-  const goBack = () => navigate("/dashboard/admin");
 
   return (
     <div className="space-y-8">
