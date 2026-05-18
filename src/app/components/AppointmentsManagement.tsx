@@ -184,9 +184,9 @@ export function AppointmentsManagement() {
 
       setUpdatingId(id);
       await updateDoc(doc(db, "appointments", id), {
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
+  status: newStatus,
+  updatedAt: serverTimestamp(),
+});
 
       if (appointment.userId) {
         await createNotification({
