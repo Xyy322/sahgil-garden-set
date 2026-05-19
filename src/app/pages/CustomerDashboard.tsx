@@ -176,6 +176,24 @@ function getFinalTotalLabel(order: Order): string {
   return "To be confirmed";
 }
 
+function getFinalTotalAmount(order: Order): number | null {
+  if (
+    typeof order.finalTotal === "number" &&
+    Number.isFinite(order.finalTotal)
+  ) {
+    return order.finalTotal;
+  }
+
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return getProductSubtotal(order) + order.deliveryFee;
+  }
+
+  return null;
+}
+
 function getTimeMillis(value: any): number {
   if (!value) return 0;
 
@@ -826,11 +844,19 @@ const visibleAppointments = filteredAppointments.slice(
                                 </div>
                               </div>
 
-                              <div className="flex items-end justify-between sm:mt-0 sm:justify-end">
-                                <span className="text-lg font-bold text-emerald-700">
-                                  {formatMoney(getProductSubtotal(order))}
-                                </span>
-                              </div>
+                              <div className="flex flex-col items-end justify-between sm:mt-0 sm:justify-end">
+  <span className="text-lg font-bold text-emerald-700">
+    {getFinalTotalAmount(order) !== null
+      ? formatMoney(getFinalTotalAmount(order))
+      : formatMoney(getProductSubtotal(order))}
+  </span>
+
+  <span className="mt-1 text-xs font-medium text-stone-500">
+    {getFinalTotalAmount(order) !== null
+      ? "Final Total"
+      : "Product Subtotal"}
+  </span>
+</div>
                             </div>
                           </button>
 
@@ -1003,20 +1029,26 @@ const visibleAppointments = filteredAppointments.slice(
                                     </span>
                                   </div>
 
-                                  <div className="mt-2 flex justify-between gap-4 text-sm">
-                                    <span className="text-stone-500">
-                                      Final Total
-                                    </span>
-                                    <span className="font-medium text-stone-800">
-                                      {getFinalTotalLabel(order)}
-                                    </span>
-                                  </div>
+                                  <div className="mt-3 flex justify-between gap-4 border-t border-stone-200 pt-3">
+  <span className="font-bold text-stone-800">
+    Final Total
+  </span>
+  <span className="text-lg font-bold text-emerald-700">
+    {getFinalTotalLabel(order)}
+  </span>
+</div>
 
-                                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                                    Delivery fee is not included in the product
-                                    subtotal. The admin will confirm the
-                                    delivery fee based on your location.
-                                  </p>
+                                  {getFinalTotalAmount(order) === null ? (
+  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+    Delivery fee is not included in the product subtotal yet. The admin will
+    confirm the delivery fee based on your location.
+  </p>
+) : (
+  <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
+    Delivery fee has been confirmed. The final total already includes your
+    product subtotal and delivery fee.
+  </p>
+)}
                                 </div>
                               </div>
                             </div>
