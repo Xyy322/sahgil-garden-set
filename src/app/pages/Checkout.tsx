@@ -1,7 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { AlertCircle, CheckCircle, ShoppingBag } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle,
+  CreditCard,
+  MapPin,
+  PackageCheck,
+  ShoppingBag,
+  Truck,
+} from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
@@ -13,6 +22,28 @@ import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 
+type CheckoutForm = {
+  fullName: string;
+  phone: string;
+  address: string;
+  city: string;
+  postalCode: string;
+};
+
+type PlacedOrderSummary = {
+  id: string;
+  fullName: string;
+  city: string;
+  total: number;
+};
+
+function formatMoney(value: number): string {
+  return `₱${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export function Checkout() {
   const { items, clearCart } = useCart();
   const navigate = useNavigate();
@@ -21,10 +52,12 @@ export function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [orderId, setOrderId] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<PlacedOrderSummary | null>(
+    null
+  );
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<CheckoutForm>({
     fullName: "",
     phone: "",
     address: "",
@@ -50,7 +83,14 @@ export function Checkout() {
     }));
   }, [authLoading, user, role, profile]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const updateField = (field: keyof CheckoutForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (authLoading) {
@@ -94,6 +134,8 @@ export function Checkout() {
     setError("");
 
     try {
+      const orderTotal = total;
+
       const orderData = {
         userId: user.uid,
         orderNumber: `SGS-${Date.now()}`,
@@ -119,7 +161,7 @@ export function Checkout() {
           postalCode: cleanPostalCode,
         },
 
-        total,
+        total: orderTotal,
         paymentMethod: "Cash on Delivery",
         status: "Pending",
 
@@ -145,8 +187,14 @@ export function Checkout() {
         statusRefId: orderRef.id,
       });
 
+      setPlacedOrder({
+        id: orderRef.id,
+        fullName: cleanFullName,
+        city: cleanCity,
+        total: orderTotal,
+      });
+
       clearCart();
-      setOrderId(orderRef.id);
       setOrderSuccess(true);
     } catch (err) {
       console.error("Checkout error:", err);
@@ -179,75 +227,77 @@ export function Checkout() {
     );
   }
 
-  if (orderSuccess) {
+  if (orderSuccess && placedOrder) {
     return (
-      <div className="min-h-screen py-12 px-4 flex items-center justify-center bg-stone-50">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-emerald-600" />
+      <div className="min-h-screen bg-stone-50 px-4 py-10 flex items-center justify-center">
+        <div className="max-w-md w-full rounded-3xl border border-stone-100 bg-white p-7 sm:p-10 text-center shadow-sm">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle className="h-10 w-10 text-emerald-600" />
           </div>
 
-          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+          <h1 className="mb-2 text-2xl font-bold text-stone-900">
             Order Placed!
           </h1>
 
-          <p className="text-stone-500 mb-2">Thank you for your order.</p>
-
-          <p className="text-xs text-stone-400 font-mono bg-stone-50 rounded-lg px-4 py-2 mb-8 border border-stone-100">
-            Order ID: {orderId.slice(0, 8).toUpperCase()}
+          <p className="mb-2 text-stone-500">
+            Thank you. Your order has been submitted successfully.
           </p>
 
-          <div className="bg-stone-50 rounded-2xl p-4 mb-8 text-left border border-stone-100">
-            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+          <p className="mb-8 rounded-lg border border-stone-100 bg-stone-50 px-4 py-2 font-mono text-xs text-stone-500">
+            Order ID: {placedOrder.id.slice(0, 8).toUpperCase()}
+          </p>
+
+          <div className="mb-8 rounded-2xl border border-stone-100 bg-stone-50 p-4 text-left">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">
               Order Summary
             </p>
 
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between gap-4 text-sm">
                 <span className="text-stone-500">Delivering to</span>
-                <span className="font-medium text-stone-800">
-                  {form.fullName}
+                <span className="text-right font-medium text-stone-800">
+                  {placedOrder.fullName}
                 </span>
               </div>
 
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between gap-4 text-sm">
                 <span className="text-stone-500">City</span>
-                <span className="font-medium text-stone-800">{form.city}</span>
+                <span className="font-medium text-stone-800">
+                  {placedOrder.city}
+                </span>
               </div>
 
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between gap-4 text-sm">
                 <span className="text-stone-500">Payment</span>
                 <span className="font-medium text-stone-800">
                   Cash on Delivery
                 </span>
               </div>
 
-              <div className="flex justify-between text-sm border-t border-stone-200 pt-2 mt-2">
+              <div className="mt-2 flex justify-between border-t border-stone-200 pt-2 text-sm">
                 <span className="font-semibold text-stone-800">Total</span>
                 <span className="font-bold text-emerald-600">
-                  ₱
-                  {total.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(placedOrder.total)}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-3">
-            <button
+            <Button
               onClick={() => navigate("/dashboard/customer")}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
+              className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700"
             >
               View My Orders
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="outline"
               onClick={() => navigate("/services")}
-              className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
+              className="w-full rounded-xl"
             >
               Continue Shopping
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -256,15 +306,15 @@ export function Checkout() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen py-12 px-4 flex items-center justify-center bg-stone-50">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
-          <ShoppingBag className="w-14 h-14 text-stone-300 mx-auto mb-4" />
+      <div className="min-h-screen bg-stone-50 px-4 py-10 flex items-center justify-center">
+        <div className="max-w-md w-full rounded-3xl border border-stone-100 bg-white p-8 sm:p-10 text-center shadow-sm">
+          <ShoppingBag className="mx-auto mb-4 h-14 w-14 text-stone-300" />
 
-          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+          <h1 className="mb-2 text-2xl font-bold text-stone-900">
             Your Cart is Empty
           </h1>
 
-          <p className="text-stone-500 mb-6">
+          <p className="mb-6 text-stone-500">
             Add products to your cart before checking out.
           </p>
 
@@ -277,17 +327,49 @@ export function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f9f7f4] py-8 px-4">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
+      <div className="mx-auto max-w-6xl">
+        <button
+          type="button"
+          onClick={() => navigate("/services")}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-stone-600 hover:text-emerald-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to products
+        </button>
+
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-stone-900">Checkout</h1>
-          <p className="text-stone-600 mt-1">
-            Complete your shipping details to place your order.
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            Checkout
+          </p>
+
+          <h1 className="mt-1 text-3xl font-bold text-stone-900 md:text-4xl">
+            Complete Your Order
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-stone-600">
+            Review your order and provide your delivery information before
+            placing your request.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Card className="lg:col-span-2 p-6 md:p-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <Card className="order-2 rounded-3xl border-stone-100 bg-white p-5 shadow-sm sm:p-7 md:p-8 lg:order-1 lg:col-span-2">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <MapPin className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">
+                  Shipping Information
+                </h2>
+                <p className="text-sm text-stone-500">
+                  Please make sure your details are accurate.
+                </p>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <Alert className="border-red-200 bg-red-50">
@@ -303,11 +385,10 @@ export function Checkout() {
                 <Input
                   id="fullName"
                   value={form.fullName}
-                  onChange={(e) =>
-                    setForm({ ...form, fullName: e.target.value })
-                  }
+                  onChange={(e) => updateField("fullName", e.target.value)}
                   placeholder="Enter your full name"
                   required
+                  className="mt-2"
                 />
               </div>
 
@@ -316,9 +397,10 @@ export function Checkout() {
                 <Input
                   id="phone"
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  onChange={(e) => updateField("phone", e.target.value)}
                   placeholder="09XX XXX XXXX"
                   required
+                  className="mt-2"
                 />
               </div>
 
@@ -327,23 +409,23 @@ export function Checkout() {
                 <Input
                   id="address"
                   value={form.address}
-                  onChange={(e) =>
-                    setForm({ ...form, address: e.target.value })
-                  }
+                  onChange={(e) => updateField("address", e.target.value)}
                   placeholder="House no., street, barangay"
                   required
+                  className="mt-2"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
                     value={form.city}
-                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    onChange={(e) => updateField("city", e.target.value)}
                     placeholder="City"
                     required
+                    className="mt-2"
                   />
                 </div>
 
@@ -352,62 +434,81 @@ export function Checkout() {
                   <Input
                     id="postalCode"
                     value={form.postalCode}
-                    onChange={(e) =>
-                      setForm({ ...form, postalCode: e.target.value })
-                    }
+                    onChange={(e) => updateField("postalCode", e.target.value)}
                     placeholder="Postal code"
                     required
+                    className="mt-2"
                   />
                 </div>
               </div>
 
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                <p className="text-sm font-semibold text-stone-800">
-                  Payment Method
-                </p>
-                <p className="text-sm text-stone-600 mt-1">
-                  Cash on Delivery
-                </p>
+                <div className="flex items-start gap-3">
+                  <CreditCard className="mt-0.5 h-5 w-5 text-emerald-700" />
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">
+                      Payment Method
+                    </p>
+                    <p className="mt-1 text-sm text-stone-600">
+                      Cash on Delivery. Payment will be settled upon delivery.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="h-12 w-full rounded-xl bg-emerald-600 font-semibold hover:bg-emerald-700"
+              >
                 {loading ? "Placing Order..." : "Place Order"}
               </Button>
             </form>
           </Card>
 
-          <Card className="p-6 h-fit">
-            <h2 className="text-lg font-bold text-stone-900 mb-4">
-              Order Summary
-            </h2>
+          <Card className="order-1 h-fit rounded-3xl border-stone-100 bg-white p-5 shadow-sm sm:p-6 lg:sticky lg:top-28 lg:order-2">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-700">
+                <PackageCheck className="h-5 w-5" />
+              </div>
 
-            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">
+                  Order Summary
+                </h2>
+                <p className="text-sm text-stone-500">
+                  {items.length} item{items.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-[360px] space-y-4 overflow-y-auto pr-1">
               {items.map((item) => (
                 <div key={item.id} className="flex gap-3">
                   {item.image ? (
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-16 h-16 object-cover rounded-xl border border-stone-100"
+                      className="h-16 w-16 shrink-0 rounded-xl border border-stone-100 object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-stone-100 flex items-center justify-center">
-                      <ShoppingBag className="w-6 h-6 text-stone-400" />
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-stone-100">
+                      <ShoppingBag className="h-6 w-6 text-stone-400" />
                     </div>
                   )}
 
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-stone-800 truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-stone-800">
                       {item.name}
                     </p>
+
                     <p className="text-sm text-stone-500">
                       Qty: {item.quantity}
                     </p>
+
                     <p className="text-sm font-semibold text-stone-800">
-                      ₱
-                      {(Number(item.price) * Number(item.quantity)).toLocaleString(
-                        "en-PH",
-                        { minimumFractionDigits: 2 }
+                      {formatMoney(
+                        Number(item.price) * Number(item.quantity || 1)
                       )}
                     </p>
                   </div>
@@ -415,15 +516,15 @@ export function Checkout() {
               ))}
             </div>
 
-            <div className="border-t border-stone-200 mt-5 pt-5">
+            <div className="mt-5 border-t border-stone-200 pt-5">
+              <div className="mb-3 flex items-center gap-2 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">
+                <Truck className="h-4 w-4 shrink-0" />
+                Delivery details will be confirmed by the shop.
+              </div>
+
               <div className="flex justify-between text-base font-bold text-stone-900">
                 <span>Total</span>
-                <span>
-                  ₱
-                  {total.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
+                <span>{formatMoney(total)}</span>
               </div>
             </div>
           </Card>
