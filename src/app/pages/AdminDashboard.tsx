@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   Clock,
   CheckCircle,
+  MessageSquare,
 } from "lucide-react";
 import {
   collection,
@@ -50,6 +51,10 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
   if (normalized === "cancelled" || normalized === "canceled") return "Cancelled";
 
   return "Pending";
+}
+
+function toFirestoreOrderStatus(status: OrderStatus): string {
+  return status.toLowerCase();
 }
 
 interface OrderItem {
@@ -139,6 +144,11 @@ export function AdminDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [appointmentsError, setAppointmentsError] = useState("");
+
+  const [inquiries, setInquiries] = useState<{ id: string; adminRead?: boolean }[]>([]);
+const [loadingInquiries, setLoadingInquiries] = useState(true);
+const [inquiriesError, setInquiriesError] = useState("");
+
 
   useEffect(() => {
     if (authLoading) {
@@ -387,7 +397,7 @@ export function AdminDashboard() {
       if (order.status === newStatus) return;
 
       await updateDoc(doc(db, "orders", orderId), {
-        status: newStatus,
+        status: toFirestoreOrderStatus(newStatus),
         updatedAt: serverTimestamp(),
       });
 

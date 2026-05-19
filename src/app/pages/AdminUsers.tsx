@@ -58,7 +58,7 @@ interface CustomerInquiry {
   id: string;
   inquiryType: string;
   message: string;
-  status: string;
+  adminRead?: boolean;
   createdAt?: unknown;
 }
 
@@ -158,7 +158,7 @@ function normalizeInquiry(id: string, data: any): CustomerInquiry {
     inquiryType:
       typeof data.inquiryType === "string" ? data.inquiryType : "General",
     message: typeof data.message === "string" ? data.message : "",
-    status: typeof data.status === "string" ? data.status : "pending",
+    adminRead: data.adminRead === true,
     createdAt: data.createdAt ?? null,
   };
 }
@@ -649,12 +649,14 @@ export function AdminUsers() {
                           </div>
 
                           <span
-                            className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(
-                              inquiry.status
-                            )}`}
-                          >
-                            {inquiry.status}
-                          </span>
+  className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+    inquiry.adminRead
+      ? "bg-stone-100 text-stone-700"
+      : "bg-red-100 text-red-700"
+  }`}
+>
+  {inquiry.adminRead ? "Read by Admin" : "Unread"}
+</span>
                         </div>
 
                         <p className="mt-3 rounded-lg bg-card p-3 text-sm text-muted-foreground">

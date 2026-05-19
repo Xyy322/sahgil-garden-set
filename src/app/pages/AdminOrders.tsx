@@ -28,6 +28,10 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
   return "Pending";
 }
 
+function toFirestoreOrderStatus(status: OrderStatus): string {
+  return status.toLowerCase();
+}
+
 function normalizePaymentMethod(method: unknown): string {
   if (typeof method !== "string") return "Cash on Delivery";
 
@@ -227,9 +231,9 @@ export function AdminOrders() {
       setUpdatingOrderId(orderId);
 
       await updateDoc(doc(db, "orders", orderId), {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
-      });
+  status: toFirestoreOrderStatus(newStatus),
+  updatedAt: serverTimestamp(),
+});
 
       if (order.userId && newStatus !== order.status) {
         await createNotification({

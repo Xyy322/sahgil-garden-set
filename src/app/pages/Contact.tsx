@@ -73,9 +73,9 @@ export function Contact() {
       const cleanPhone = formData.phone.trim();
       const cleanMessage = formData.message.trim();
 
-      if (!cleanName || !cleanEmail || !cleanMessage) {
-        throw new Error("Please fill in all required fields.");
-      }
+      if (!cleanName || !cleanEmail || !cleanPhone || !cleanMessage) {
+  throw new Error("Please fill in all required fields.");
+}
 
       if (!isValidEmail(cleanEmail)) {
         throw new Error("Please enter a valid email address.");
@@ -241,7 +241,7 @@ export function Contact() {
 
                 <input
                   type="tel"
-                  placeholder="Phone"
+                  placeholder="Phone *"
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
