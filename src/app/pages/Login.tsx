@@ -29,6 +29,21 @@ function getSafeRedirectPath(from: unknown): string | null {
   return trimmedPath;
 }
 
+function getCustomerRedirectPath(from: unknown): string {
+  const safePath = getSafeRedirectPath(from);
+
+  if (!safePath) {
+    return "/dashboard/customer";
+  }
+
+  // Customers should never be redirected to admin-only pages.
+  if (safePath.startsWith("/dashboard/admin")) {
+    return "/dashboard/customer";
+  }
+
+  return safePath;
+}
+
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,7 +87,9 @@ export function Login() {
         (profileData.role !== "admin" && profileData.role !== "customer")
       ) {
         await signOut(auth);
-        setError("Invalid user profile. Please register again or contact support.");
+        setError(
+          "Invalid user profile. Please register again or contact support."
+        );
         return;
       }
 
@@ -80,14 +97,14 @@ export function Login() {
 
       await refreshProfile();
 
-      const attemptedPath = getSafeRedirectPath(location.state?.from);
-
       if (role === "admin") {
         navigate("/dashboard/admin", { replace: true });
         return;
       }
 
-      navigate(attemptedPath ?? "/dashboard/customer", { replace: true });
+      navigate(getCustomerRedirectPath(location.state?.from), {
+        replace: true,
+      });
     } catch (err: unknown) {
       setError(mapFirebaseAuthError(err));
     } finally {
