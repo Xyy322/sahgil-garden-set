@@ -500,54 +500,127 @@ export function CustomerDashboard() {
   }
 
   return (
-    <div className="bg-[#f9f7f4] min-h-screen py-12 relative z-0">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
-          <div>
-            <h1 className="text-3xl font-bold text-stone-800">
-              Welcome back, {userName}!
-            </h1>
-            <p className="text-stone-600 mt-1">
-              Manage your orders and landscaping appointments.
-            </p>
-          </div>
+    <div className="bg-[#f9f7f4] min-h-screen py-8 md:py-12 relative z-0">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="mb-8 rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            Customer Dashboard
+          </p>
+
+          <h1 className="mt-1 text-2xl font-bold text-stone-900 md:text-4xl">
+            Welcome back, {userName}!
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
+            Track your furniture orders, landscaping appointments, inquiries,
+            and account activity in one place.
+          </p>
         </div>
 
+        <button
+          type="button"
+          onClick={() => navigate("/services")}
+          className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 md:w-auto"
+        >
+          Browse Products
+        </button>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl bg-stone-50 p-4">
+          <p className="text-sm text-stone-500">Orders</p>
+          <p className="mt-1 text-2xl font-bold text-stone-900">
+            {orders.length}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-stone-50 p-4">
+          <p className="text-sm text-stone-500">Active Appointments</p>
+          <p className="mt-1 text-2xl font-bold text-stone-900">
+            {
+              appointments.filter(
+                (appointment) =>
+                  appointment.status === "approved" ||
+                  appointment.status === "pending"
+              ).length
+            }
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-stone-50 p-4">
+          <p className="text-sm text-stone-500">Completed</p>
+          <p className="mt-1 text-2xl font-bold text-stone-900">
+            {
+              appointments.filter(
+                (appointment) => appointment.status === "completed"
+              ).length
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+
         {(ordersError || appointmentsError) && (
-          <div className="mb-6 space-y-3">
+  <div className="mb-6 space-y-3">
             {ordersError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-700">
                 {ordersError}
               </div>
             )}
 
             {appointmentsError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-700">
                 {appointmentsError}
               </div>
             )}
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-emerald-600" />
-                  Recent Furniture Orders
-                </h2>
-              </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] lg:gap-8">
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-7">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
+      <Package className="h-5 w-5 text-emerald-600" />
+      Recent Furniture Orders
+    </h2>
+    <p className="mt-1 text-sm text-stone-500">
+      Track your furniture order status and order details.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => navigate("/services")}
+    className="w-full rounded-xl border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 sm:w-auto"
+  >
+    Shop Again
+  </button>
+</div>
 
               <div className="space-y-5">
                 {loadingOrders ? (
-                  <div className="text-center py-8 text-stone-500">
-                    Loading orders...
-                  </div>
+                  <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
+  Loading your orders...
+</div>
                 ) : orders.length === 0 ? (
-                  <div className="text-center py-8 text-stone-500">
-                    No orders yet. Start shopping to see your orders here!
-                  </div>
+                  <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center">
+  <Package className="mx-auto mb-3 h-10 w-10 text-stone-300" />
+  <h3 className="font-semibold text-stone-900">No orders yet</h3>
+  <p className="mt-1 text-sm text-stone-500">
+    Your furniture orders will appear here after checkout.
+  </p>
+  <button
+    type="button"
+    onClick={() => navigate("/services")}
+    className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+  >
+    Browse Products
+  </button>
+</div>
                 ) : (
                   orders.slice(0, 5).map((order) => {
                     const currentStep = getStatusStep(order.status);
@@ -556,25 +629,25 @@ export function CustomerDashboard() {
                     return (
                       <div
                         key={order.id}
-                        className="border border-stone-100 rounded-2xl overflow-hidden"
+                        className="overflow-hidden rounded-2xl border border-stone-100 bg-white shadow-sm"
                       >
                         <button
                           type="button"
                           onClick={() =>
                             setExpandedOrder(isExpanded ? null : order.id)
                           }
-                          className="w-full text-left p-4 bg-stone-50 hover:bg-stone-100 transition-colors"
+                          className="w-full bg-stone-50 p-4 text-left transition-colors hover:bg-stone-100 sm:p-5"
                           aria-expanded={isExpanded}
                           aria-controls={`order-details-${order.id}`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                            <div className="flex items-center gap-4">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 items-center gap-4">
                               <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                                 <PackageIcon className="w-6 h-6 text-emerald-600" />
                               </div>
 
-                              <div>
-                                <div className="flex items-center gap-2">
+                              <div className="min-w-0">
+  <div className="flex flex-wrap items-center gap-2">
                                   <h3 className="font-bold text-stone-800">
                                     Order #{order.id.slice(0, 8)}
                                   </h3>
@@ -601,8 +674,8 @@ export function CustomerDashboard() {
                               </div>
                             </div>
 
-                            <div className="flex justify-between items-end mt-4 sm:mt-0">
-                              <span className="font-bold text-stone-800">
+                            <div className="flex items-end justify-between sm:mt-0 sm:justify-end">
+  <span className="text-lg font-bold text-emerald-700">
                                 ₱
                                 {order.total.toLocaleString("en-PH", {
                                   minimumFractionDigits: 2,
@@ -786,27 +859,33 @@ export function CustomerDashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-stone-100">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-emerald-600" />
-                  Landscaping Appointments
-                </h2>
+            <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-7">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
+      <Calendar className="h-5 w-5 text-emerald-600" />
+      Landscaping Appointments
+    </h2>
+    <p className="mt-1 text-sm text-stone-500">
+      View your scheduled consultation and appointment status.
+    </p>
+  </div>
 
-                <button
-                  onClick={() => navigate("/landscaping/booking")}
-                  className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
-                >
-                  Book New
-                </button>
-              </div>
+  <button
+    type="button"
+    onClick={() => navigate("/landscaping/booking")}
+    className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:w-auto"
+  >
+    Book New
+  </button>
+</div>
 
               {loadingAppointments ? (
-                <div className="text-center py-8 text-stone-500">
-                  Loading appointments...
-                </div>
+                <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
+  Loading your appointments...
+</div>
               ) : appointments.length === 0 ? (
-                <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200 text-center">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-center">
                   <Leaf className="w-12 h-12 text-amber-600 mx-auto mb-2" />
                   <p className="text-stone-700 font-medium mb-2">
                     No appointments scheduled
@@ -816,7 +895,7 @@ export function CustomerDashboard() {
                   </p>
                   <button
                     onClick={() => navigate("/landscaping/booking")}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                    className="mt-2 w-full rounded-xl bg-emerald-600 px-4 py-2.5 font-semibold text-white transition hover:bg-emerald-700 sm:w-auto"
                   >
                     Schedule Now
                   </button>
@@ -830,7 +909,7 @@ export function CustomerDashboard() {
                     return (
                       <div
                         key={appointmentId}
-                        className="border border-stone-100 rounded-2xl overflow-hidden"
+                        className="overflow-hidden rounded-2xl border border-stone-100 bg-white shadow-sm"
                       >
                         <button
                           type="button"
@@ -839,17 +918,17 @@ export function CustomerDashboard() {
                               isExpanded ? null : appointmentId
                             )
                           }
-                          className="w-full text-left p-4 bg-stone-50 hover:bg-stone-100 transition-colors"
+                          className="w-full bg-stone-50 p-4 text-left transition-colors hover:bg-stone-100 sm:p-5"
                           aria-expanded={isExpanded}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 items-center gap-4">
                               <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                                 <Calendar className="w-6 h-6 text-emerald-600" />
                               </div>
 
-                              <div>
-                                <h3 className="font-bold text-stone-800">
+                              <div className="min-w-0">
+  <h3 className="font-bold text-stone-900">
                                   {apt.date
                                     ? formatDisplayDate(apt.date)
                                     : "No date provided"}{" "}
@@ -865,7 +944,7 @@ export function CustomerDashboard() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between gap-2 sm:justify-end">
                               <span
                                 className={`px-3 py-1 text-xs font-bold rounded-full border ${getAppointmentStatusClass(
                                   apt.status
@@ -884,15 +963,15 @@ export function CustomerDashboard() {
                         </button>
 
                         {isExpanded && (
-                          <div className="border-t border-stone-100 p-4 bg-stone-50">
+                          <div className="border-t border-stone-100 bg-stone-50 p-4 sm:p-5">
                             {apt.status === "pending" && (
-                              <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex gap-2">
+                              <div className="mb-4 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                                 <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                                 <div>
                                   <p className="text-sm font-medium text-amber-800">
                                     Pending Approval
                                   </p>
-                                  <p className="text-xs text-amber-700">
+                                  <p className="mt-1 text-xs leading-relaxed text-amber-700">
                                     The admin will review and confirm your
                                     appointment within 24 hours.
                                   </p>
@@ -900,7 +979,7 @@ export function CustomerDashboard() {
                               </div>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                               <div className="bg-white p-4 rounded-xl">
                                 <h4 className="font-bold text-stone-800 mb-2">
                                   Appointment Details
@@ -967,7 +1046,7 @@ export function CustomerDashboard() {
                                     e.stopPropagation();
                                     setCancelAppointmentId(appointmentId);
                                   }}
-                                  className="flex-1 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors"
+                                  className="flex-1 rounded-xl bg-red-100 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-200"
                                 >
                                   Cancel Appointment
                                 </button>
@@ -983,23 +1062,23 @@ export function CustomerDashboard() {
             </div>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             <Cart />
 
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-stone-100">
-              <h3 className="font-bold text-stone-800 mb-4">
-                Account Summary
-              </h3>
+            <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-6">
+  <h3 className="mb-4 text-lg font-bold text-stone-900">
+    Account Summary
+  </h3>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b border-stone-100">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4 rounded-2xl bg-stone-50 px-4 py-3">
                   <span className="text-stone-600">Total Orders</span>
                   <span className="font-bold text-stone-800">
                     {orders.length}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center py-2 border-b border-stone-100">
+                <div className="flex items-center justify-between gap-4 rounded-2xl bg-stone-50 px-4 py-3">
                   <span className="text-stone-600">Active Consultations</span>
                   <span className="font-bold text-stone-800">
                     {
@@ -1012,7 +1091,7 @@ export function CustomerDashboard() {
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center py-2 border-b border-stone-100">
+                <div className="flex items-center justify-between gap-4 rounded-2xl bg-stone-50 px-4 py-3">
                   <span className="text-stone-600">
                     Completed Consultations
                   </span>
@@ -1027,23 +1106,23 @@ export function CustomerDashboard() {
               </div>
             </div>
 
-            <div className="bg-stone-900 rounded-3xl p-6 text-white relative overflow-hidden">
+            <div className="relative overflow-hidden rounded-3xl bg-stone-900 p-5 text-white shadow-sm md:p-6">
               <div className="relative z-10">
-                <h3 className="font-bold text-lg mb-2">Need Help?</h3>
-                <p className="text-stone-400 text-sm mb-4">
+                <h3 className="mb-2 text-lg font-bold">Need Help?</h3>
+<p className="mb-5 text-sm leading-relaxed text-stone-400">
                   Have questions about an order or your upcoming appointment?
                 </p>
 
                 <div className="flex flex-col gap-2">
                   <button
-                    className="w-full py-2.5 bg-white text-stone-900 rounded-xl font-bold hover:bg-stone-100 transition-colors shadow-sm"
+                    className="w-full rounded-xl bg-white px-4 py-3 text-sm font-bold text-stone-900 shadow-sm transition hover:bg-stone-100"
                     onClick={() => navigate("/contact")}
                   >
                     Contact Support
                   </button>
 
                   <button
-                    className="w-full py-2.5 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 transition-colors shadow-sm"
+                    className="w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800"
                     onClick={() => navigate("/dashboard/customer/inquiries")}
                   >
                     My Inquiries

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar } from "../components/ui/calendar";
 import { Button } from "../components/ui/button";
@@ -15,6 +15,8 @@ import {
   Calendar as CalendarIcon,
   Clock3,
   UserRound,
+  ArrowLeft,
+  ShieldCheck,
 } from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
@@ -56,7 +58,6 @@ function isValidDateKey(value: unknown): value is string {
 
 function hasLockConflict(dateKey: string, blockedDates: string[]) {
   const requestedLockDates = getBlockedDates(parseDateKey(dateKey));
-
   return requestedLockDates.some((date) => blockedDates.includes(date));
 }
 
@@ -121,6 +122,11 @@ export function LandscapingBooking() {
     }),
     [profile?.fullName, profile?.phoneNumber, user?.displayName]
   );
+
+  const selectedDateKey = selectedDate ? toDateKey(selectedDate) : "";
+  const selectedLockDates = selectedDateKey
+    ? getBlockedDates(parseDateKey(selectedDateKey))
+    : [];
 
   useEffect(() => {
     if (authLoading) {
@@ -191,7 +197,7 @@ export function LandscapingBooking() {
     loadAvailability();
   }, [authLoading, user, role]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -237,17 +243,17 @@ export function LandscapingBooking() {
     }
 
     const dateKey = toDateKey(selectedDate);
-const lockDates = getBlockedDates(parseDateKey(dateKey));
-const conflictingDate = lockDates.find((date) =>
-  blockedDates.includes(date)
-);
+    const lockDates = getBlockedDates(parseDateKey(dateKey));
+    const conflictingDate = lockDates.find((date) =>
+      blockedDates.includes(date)
+    );
 
-if (conflictingDate) {
-  setError(
-    `Selected schedule is unavailable because ${conflictingDate} is already reserved. Please choose another date.`
-  );
-  return;
-}
+    if (conflictingDate) {
+      setError(
+        `Selected schedule is unavailable because ${conflictingDate} is already reserved. Please choose another date.`
+      );
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -298,12 +304,12 @@ if (conflictingDate) {
       });
 
       await createNotification({
-  userId: "admin",
-  title: "New appointment request",
-  message: `${cleanName} booked an appointment on ${dateKey} at ${selectedTime}.`,
-  type: "appointment",
-  statusRefId: appointmentRef.id,
-});
+        userId: "admin",
+        title: "New appointment request",
+        message: `${cleanName} booked an appointment on ${dateKey} at ${selectedTime}.`,
+        type: "appointment",
+        statusRefId: appointmentRef.id,
+      });
 
       setBlockedDates((prev) => Array.from(new Set([...prev, ...lockDates])));
       setStep("success");
@@ -317,8 +323,10 @@ if (conflictingDate) {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-stone-600">
-        Loading appointment form...
+      <div className="min-h-screen bg-[#f9f7f4] px-4 py-10 flex items-center justify-center">
+        <div className="rounded-2xl border border-stone-100 bg-white p-8 text-center text-stone-600 shadow-sm">
+          Loading appointment form...
+        </div>
       </div>
     );
   }
@@ -335,8 +343,8 @@ if (conflictingDate) {
 
   if (step === "success") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-10 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 py-10">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-7 sm:p-10 text-center">
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-emerald-600" />
           </div>
@@ -346,7 +354,8 @@ if (conflictingDate) {
           </h1>
 
           <p className="text-stone-500 mb-6">
-            Your landscaping consultation has been submitted.
+            Your landscaping consultation has been submitted and is now pending
+            admin confirmation.
           </p>
 
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6 text-left space-y-2">
@@ -354,14 +363,14 @@ if (conflictingDate) {
               Booking Details
             </p>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between gap-4 text-sm">
               <span className="text-stone-500">Date</span>
-              <span className="font-medium text-stone-800">
+              <span className="text-right font-medium text-stone-800">
                 {selectedDate ? formatDisplayDate(toDateKey(selectedDate)) : "—"}
               </span>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between gap-4 text-sm">
               <span className="text-stone-500">Time</span>
               <span className="font-medium text-stone-800">
                 {selectedTime ? formatTime(selectedTime) : "—"}
@@ -369,38 +378,45 @@ if (conflictingDate) {
             </div>
 
             {formData.fullName && (
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between gap-4 text-sm">
                 <span className="text-stone-500">Name</span>
-                <span className="font-medium text-stone-800">
+                <span className="text-right font-medium text-stone-800">
                   {formData.fullName}
                 </span>
               </div>
             )}
           </div>
 
-          <p className="text-sm text-stone-400 mb-8">
-            We will confirm your appointment within 24 hours.
-          </p>
+          <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
+            <p className="text-sm font-semibold text-amber-800">
+              Schedule reservation note
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-700">
+              The selected date and the next two days are reserved to prevent
+              overlapping landscaping appointments.
+            </p>
+          </div>
 
           <div className="flex flex-col gap-3">
-            <button
+            <Button
               onClick={() => navigate("/dashboard/customer")}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors"
+              className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700"
             >
               Go to Dashboard
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="outline"
               onClick={() => {
                 setStep("booking");
                 setSelectedDate(undefined);
                 setSelectedTime("");
                 setFormData(defaultFormData);
               }}
-              className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-medium transition-colors"
+              className="w-full rounded-xl"
             >
               Book Another Appointment
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -408,50 +424,101 @@ if (conflictingDate) {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4 bg-[#f9f7f4]">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-stone-900">
-          Book a Landscaping Consultation
-        </h1>
+    <div className="min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
+      <div className="mx-auto max-w-6xl">
+        <button
+          type="button"
+          onClick={() => navigate("/services")}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-stone-600 hover:text-emerald-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to services
+        </button>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          <Card className="p-6 h-fit">
+        <div className="mb-8 rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            Landscaping Appointment
+          </p>
+
+          <h1 className="mt-1 text-3xl font-bold text-stone-900 md:text-4xl">
+            Book a Landscaping Consultation
+          </h1>
+
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600 md:text-base">
+            Choose an available schedule and provide your contact details. The
+            system checks the full 3-day service window to avoid overlapping
+            landscaping bookings.
+          </p>
+
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">
+                3-day schedule lock
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-emerald-800">
+                When you book a date, that date and the next two days are
+                reserved while the appointment is pending or approved.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-900">
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
+          <Card className="h-fit rounded-3xl border-stone-100 bg-white p-5 shadow-sm sm:p-6 md:p-7">
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-stone-900">
-                  <CalendarIcon className="w-5 h-5 text-emerald-600" />
+                <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900">
+                  <CalendarIcon className="h-5 w-5 text-emerald-600" />
                   Select Date
                 </h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  Dates that conflict with existing 3-day schedules are disabled.
+                </p>
 
-                <div className="flex justify-center">
+                <div className="mt-5 flex justify-center overflow-x-auto">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
                     onSelect={(date) => {
                       setSelectedDate(date);
                       setSelectedTime("");
+                      setError("");
                     }}
                     disabled={(date) => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+                      const now = new Date();
+                      now.setHours(0, 0, 0, 0);
 
-  const dateKey = toDateKey(date);
+                      const dateKey = toDateKey(date);
 
-  return date < now || hasLockConflict(dateKey, blockedDates);
-}}
-                    className="rounded-lg border border-stone-200"
+                      return date < now || hasLockConflict(dateKey, blockedDates);
+                    }}
+                    className="rounded-2xl border border-stone-200 bg-white p-2"
                   />
                 </div>
               </div>
 
               {selectedDate && (
                 <div>
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-stone-900">
-                    <Clock3 className="w-5 h-5 text-emerald-600" />
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900">
+                    <Clock3 className="h-5 w-5 text-emerald-600" />
                     Select Time
                   </h2>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <p className="mt-1 text-sm text-stone-500">
+                    Choose your preferred consultation time.
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {TIME_SLOTS.map((time) => {
                       const available = isTimeSlotAvailable(
                         selectedDate,
@@ -463,14 +530,17 @@ if (conflictingDate) {
                         <button
                           type="button"
                           key={time}
-                          onClick={() => setSelectedTime(time)}
+                          onClick={() => {
+                            setSelectedTime(time);
+                            setError("");
+                          }}
                           disabled={!available}
-                          className={`p-3 rounded-lg font-medium transition-all ${
+                          className={`rounded-xl px-3 py-3 text-sm font-semibold transition-all ${
                             selectedTime === time
                               ? "bg-emerald-600 text-white shadow-md"
                               : available
                               ? "bg-stone-100 text-stone-900 hover:bg-stone-200"
-                              : "bg-stone-50 text-stone-400 cursor-not-allowed"
+                              : "cursor-not-allowed bg-stone-50 text-stone-400"
                           }`}
                         >
                           {formatTime(time)}
@@ -481,45 +551,73 @@ if (conflictingDate) {
                 </div>
               )}
 
-              {selectedDate && selectedTime && (
-                <Alert className="bg-emerald-50 border-emerald-200">
-                  <AlertDescription className="text-emerald-900">
-                    ✓ Scheduled for {formatDisplayDate(toDateKey(selectedDate))} at{" "}
-                    {formatTime(selectedTime)}
-                  </AlertDescription>
-                </Alert>
+              {selectedDate && (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                  <p className="text-sm font-semibold text-stone-900">
+                    Selected schedule
+                  </p>
+
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-stone-500">Date</span>
+                      <span className="text-right font-medium text-stone-800">
+                        {formatDisplayDate(toDateKey(selectedDate))}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4">
+                      <span className="text-stone-500">Time</span>
+                      <span className="font-medium text-stone-800">
+                        {selectedTime ? formatTime(selectedTime) : "Not selected"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {selectedLockDates.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold text-amber-800">
+                        Dates to be reserved:
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {selectedLockDates.map((date) => (
+                          <span
+                            key={date}
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-800"
+                          >
+                            {date}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </Card>
 
-          <Card className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <Card className="rounded-3xl border-stone-100 bg-white p-5 shadow-sm sm:p-6 md:p-7">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-stone-900">
-                  <UserRound className="w-5 h-5 text-emerald-600" />
+                <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900">
+                  <UserRound className="h-5 w-5 text-emerald-600" />
                   Your Information
                 </h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  These details will be used to contact you about your booking.
+                </p>
               </div>
-
-              {error && (
-                <Alert className="bg-red-50 border-red-200">
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                  <AlertDescription className="text-red-900">
-                    {error}
-                  </AlertDescription>
-                </Alert>
-              )}
 
               <div>
                 <Label htmlFor="fullname">Full Name</Label>
                 <Input
                   id="fullname"
-                  placeholder="John Doe"
+                  placeholder="Enter your full name"
                   value={formData.fullName}
                   onChange={(e) =>
                     setFormData({ ...formData, fullName: e.target.value })
                   }
                   required
+                  className="mt-2"
                 />
               </div>
 
@@ -533,6 +631,7 @@ if (conflictingDate) {
                     setFormData({ ...formData, phone: e.target.value })
                   }
                   required
+                  className="mt-2"
                 />
               </div>
 
@@ -545,14 +644,24 @@ if (conflictingDate) {
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  className="min-h-[120px]"
+                  className="mt-2 min-h-[130px]"
                 />
+              </div>
+
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                <p className="text-sm font-semibold text-stone-900">
+                  Before submitting
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                  Your appointment will be saved as pending. The admin will
+                  review and confirm or reject the request.
+                </p>
               </div>
 
               <Button
                 type="submit"
                 disabled={submitting || !selectedDate || !selectedTime}
-                className="w-full"
+                className="h-12 w-full rounded-xl bg-emerald-600 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 {submitting ? "Submitting..." : "Book Appointment"}
               </Button>
