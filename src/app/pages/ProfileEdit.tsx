@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { updateProfile } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { ArrowLeft, MapPin, Phone, Save, UserRound } from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import { useAuth } from "../context/AuthContext";
@@ -75,32 +77,41 @@ export function ProfileEdit() {
       });
 
       await setDoc(
-  doc(db, "users", user.uid),
-  {
-    uid: user.uid,
-    email: user.email || profile?.email || "",
-    fullName: cleanName,
-    username: cleanUsername,
-    phoneNumber: phone.normalized || phone.value.trim(),
-    address: cleanAddress,
-    role: "customer",
-    hasPassword: true,
-    updatedAt: serverTimestamp(),
-  },
-  { merge: true }
-);
+        doc(db, "users", user.uid),
+        {
+          uid: user.uid,
+          email: user.email || profile?.email || "",
+          fullName: cleanName,
+          username: cleanUsername,
+          phoneNumber: phone.normalized || phone.value.trim(),
+          address: cleanAddress,
+          role: "customer",
+          hasPassword: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       await refreshProfile();
+
+      toast.success("Profile updated", {
+        description: "Your profile information has been saved successfully.",
+      });
 
       navigate("/profile", { replace: true });
     } catch (err) {
       console.error("Profile update error:", err);
 
-      setError(
+      const message =
         err instanceof Error
           ? err.message
-          : "Failed to update profile. Please try again."
-      );
+          : "Failed to update profile. Please try again.";
+
+      setError(message);
+
+      toast.error("Failed to update profile", {
+        description: message,
+      });
     } finally {
       setSaving(false);
     }
@@ -108,7 +119,7 @@ export function ProfileEdit() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-stone-600">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] text-stone-600">
         Loading profile...
       </div>
     );
@@ -116,7 +127,7 @@ export function ProfileEdit() {
 
   if (!user || role !== "customer") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] p-6">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
           Only logged-in customers can edit this profile.
         </div>
@@ -125,102 +136,140 @@ export function ProfileEdit() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-8 flex items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
-            Edit Profile
-          </CardTitle>
-        </CardHeader>
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4] px-4 py-10 md:py-14">
+      <div className="mx-auto w-full max-w-2xl">
+        <button
+          type="button"
+          onClick={() => navigate("/profile")}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-stone-600 hover:text-emerald-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Profile
+        </button>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Full Name
-              </label>
-              <Input
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="Full Name"
-                autoComplete="name"
-                required
-              />
-            </div>
+        <Card className="overflow-hidden rounded-3xl border border-stone-100 bg-white shadow-sm">
+          <CardHeader className="border-b border-stone-100 bg-stone-50/70 px-6 py-6 md:px-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <UserRound className="h-6 w-6" />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Username
-              </label>
-              <Input
-                value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
-                }
-                placeholder="Username"
-                autoComplete="username"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Phone Number
-              </label>
-              <Input
-                value={phone.value}
-                onChange={(e) => phone.onChange(e.target.value)}
-                placeholder="0917xxxxxxx or +63917xxxxxxx"
-                className={phone.value && !phone.isValid ? "border-destructive" : ""}
-                autoComplete="tel"
-              />
-
-              {phone.value && !phone.isValid && (
-                <p className="text-xs text-destructive mt-1">
-                  {phone.error || "Invalid phone number"}
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+                  Customer Profile
                 </p>
+                <CardTitle className="mt-1 text-2xl font-bold text-stone-900">
+                  Edit Profile
+                </CardTitle>
+                <p className="mt-1 text-sm text-stone-500">
+                  Update your personal information and delivery details.
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-6 md:p-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-stone-800">
+                  Full Name
+                </label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="Full Name"
+                  autoComplete="name"
+                  required
+                  className="h-12 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-stone-800">
+                  Username
+                </label>
+                <Input
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
+                  }
+                  placeholder="Username"
+                  autoComplete="username"
+                  className="h-12 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <Phone className="h-4 w-4 text-emerald-700" />
+                  Phone Number
+                </label>
+                <Input
+                  value={phone.value}
+                  onChange={(e) => phone.onChange(e.target.value)}
+                  placeholder="0917xxxxxxx or +63917xxxxxxx"
+                  className={`h-12 rounded-xl ${
+                    phone.value && !phone.isValid ? "border-red-500" : ""
+                  }`}
+                  autoComplete="tel"
+                />
+
+                {phone.value && !phone.isValid && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {phone.error || "Invalid phone number"}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <MapPin className="h-4 w-4 text-emerald-700" />
+                  Address
+                </label>
+                <textarea
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  className="min-h-[110px] w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  placeholder="Address"
+                  autoComplete="street-address"
+                  required
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">
+                  {error}
+                </div>
               )}
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Address
-              </label>
-              <textarea
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-                className="w-full min-h-[80px] resize-none rounded-xl border border-border bg-input-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring outline-none"
-                placeholder="Address"
-                autoComplete="street-address"
-                required
-              />
-            </div>
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate("/profile")}
+                  disabled={saving}
+                  className="button-press h-12 w-full rounded-xl"
+                >
+                  Cancel
+                </Button>
 
-            {error && (
-              <p className="text-destructive text-sm text-center">{error}</p>
-            )}
-
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/profile")}
-                disabled={saving}
-                className="w-full"
-              >
-                Cancel
-              </Button>
-
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="button-press h-12 w-full rounded-xl bg-emerald-700 text-white hover:bg-emerald-800"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
