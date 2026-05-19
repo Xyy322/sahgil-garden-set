@@ -13,7 +13,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { Sheet, SheetContent } from "./ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 import { NotificationBell } from "./notifications/NotificationBell";
 
 type AdminNavItem = {
@@ -142,12 +142,14 @@ export function AdminLayout() {
       </aside>
 
       <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <SheetContent side="left" className="w-[280px] p-0 bg-white">
-          <div className="flex flex-col h-full">
-            <SidebarContent />
-          </div>
-        </SheetContent>
-      </Sheet>
+  <SheetContent side="left" className="w-[280px] p-0 bg-white">
+    <SheetTitle className="sr-only">Admin navigation menu</SheetTitle>
+
+    <div className="flex flex-col h-full">
+      <SidebarContent />
+    </div>
+  </SheetContent>
+</Sheet>
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <header className="bg-white text-stone-900 px-4 md:px-6 py-4 border-b border-stone-200 sticky top-0 z-30">
