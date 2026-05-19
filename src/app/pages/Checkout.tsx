@@ -1,7 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import {
   AlertCircle,
   ArrowLeft,
@@ -39,11 +45,149 @@ type PlacedOrderSummary = {
   total: number;
 };
 
+type ValidatedOrderItem = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+};
+
+type CartItemForCheckout = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+};
+
+const MAX_CART_ITEMS = 50;
+const MAX_ITEM_QUANTITY = 50;
+
 function formatMoney(value: number): string {
   return `₱${value.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function normalizeOrderQuantity(value: unknown, productName: string): number {
+  const quantity = Number(value);
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new Error(`Invalid quantity for ${productName}.`);
+  }
+
+  if (quantity > MAX_ITEM_QUANTITY) {
+    throw new Error(
+      `${productName} exceeds the maximum allowed quantity of ${MAX_ITEM_QUANTITY}.`
+    );
+  }
+
+  return quantity;
+}
+
+function getProductName(data: Record<string, unknown>, fallback: string): string {
+  const name = data.name;
+
+  if (typeof name === "string" && name.trim()) {
+    return name.trim();
+  }
+
+  return fallback.trim() || "Product";
+}
+
+function getProductImage(data: Record<string, unknown>, fallback: string): string {
+  const imageUrl = data.imageUrl;
+
+  if (typeof imageUrl === "string" && imageUrl.trim()) {
+    return imageUrl.trim();
+  }
+
+  const image = data.image;
+
+  if (typeof image === "string" && image.trim()) {
+    return image.trim();
+  }
+
+  return fallback;
+}
+
+function isProductAvailable(status: unknown): boolean {
+  if (typeof status !== "string") {
+    return false;
+  }
+
+  return status.trim().toLowerCase() === "available";
+}
+
+async function validateCartItemsAgainstFirestore(
+  cartItems: CartItemForCheckout[]
+): Promise<{
+  validatedItems: ValidatedOrderItem[];
+  productSubtotal: number;
+}> {
+  if (cartItems.length === 0) {
+    throw new Error("Your cart is empty.");
+  }
+
+  if (cartItems.length > MAX_CART_ITEMS) {
+    throw new Error(`You can only checkout up to ${MAX_CART_ITEMS} items.`);
+  }
+
+  const validatedItems = await Promise.all(
+    cartItems.map(async (item) => {
+      if (typeof item.id !== "string" || item.id.trim() === "") {
+        throw new Error("One cart item has an invalid product ID.");
+      }
+
+      const productRef = doc(db, "products", item.id);
+      const productSnap = await getDoc(productRef);
+
+      if (!productSnap.exists()) {
+        throw new Error(
+          `${item.name || "A product"} is no longer available in the catalog.`
+        );
+      }
+
+      const productData = productSnap.data() as Record<string, unknown>;
+      const productName = getProductName(productData, item.name);
+
+      if (!isProductAvailable(productData.status)) {
+        throw new Error(`${productName} is currently unavailable.`);
+      }
+
+      const firestorePrice = Number(productData.price);
+
+      if (!Number.isFinite(firestorePrice) || firestorePrice <= 0) {
+        throw new Error(`${productName} has an invalid product price.`);
+      }
+
+      const quantity = normalizeOrderQuantity(item.quantity, productName);
+
+      return {
+        id: item.id,
+        name: productName,
+        price: firestorePrice,
+        quantity,
+        image: getProductImage(productData, item.image || ""),
+      };
+    })
+  );
+
+  const productSubtotal = validatedItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
+  if (!Number.isFinite(productSubtotal) || productSubtotal <= 0) {
+    throw new Error("Invalid verified order total.");
+  }
+
+  return {
+    validatedItems,
+    productSubtotal,
+  };
 }
 
 export function Checkout() {
@@ -67,7 +211,7 @@ export function Checkout() {
     postalCode: "",
   });
 
-  const total = items.reduce(
+  const displayedSubtotal = items.reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1),
     0
   );
@@ -94,6 +238,10 @@ export function Checkout() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    if (loading) {
+      return;
+    }
 
     if (authLoading) {
       setError("Please wait while your account is being verified.");
@@ -127,16 +275,12 @@ export function Checkout() {
       return;
     }
 
-    if (!Number.isFinite(total) || total <= 0) {
-      setError("Invalid order total.");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      const productSubtotal = total;
+      const { validatedItems, productSubtotal } =
+        await validateCartItemsAgainstFirestore(items);
 
       const orderData = {
         userId: user.uid,
@@ -147,13 +291,9 @@ export function Checkout() {
         customerPhone: cleanPhone,
         address: `${cleanAddress}, ${cleanCity} ${cleanPostalCode}`,
 
-        items: items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: Number(item.price) || 0,
-          quantity: Number(item.quantity) || 1,
-          image: item.image || "",
-        })),
+        // Important:
+        // These items are verified against Firestore before saving.
+        items: validatedItems,
 
         shippingInfo: {
           fullName: cleanFullName,
@@ -167,7 +307,8 @@ export function Checkout() {
         deliveryFee: null,
         finalTotal: null,
 
-        // Legacy field kept for existing pages. This means product subtotal only.
+        // Legacy field kept for existing pages/reports.
+        // This is product subtotal only, not final total with delivery.
         total: productSubtotal,
 
         paymentMethod: "Cash on Delivery",
@@ -239,46 +380,46 @@ export function Checkout() {
   }
 
   if (!user || role !== "customer") {
-  return (
-    <div className="page-fade-in flex min-h-screen items-center justify-center bg-[#f9f7f4] px-4">
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
+    return (
+      <div className="page-fade-in flex min-h-screen items-center justify-center bg-[#f9f7f4] px-4">
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
 
-      <div className="relative z-50 w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-          <LogIn className="h-7 w-7" />
-        </div>
+        <div className="relative z-50 w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+            <LogIn className="h-7 w-7" />
+          </div>
 
-        <h2 className="text-xl font-bold text-stone-900">Login Required</h2>
+          <h2 className="text-xl font-bold text-stone-900">Login Required</h2>
 
-        <p className="mt-4 text-sm leading-relaxed text-stone-600">
-          Please log in as a customer first before proceeding to checkout.
-        </p>
+          <p className="mt-4 text-sm leading-relaxed text-stone-600">
+            Please log in as a customer first before proceeding to checkout.
+          </p>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => navigate("/services")}
-            className="button-press rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
-          >
-            Cancel
-          </button>
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => navigate("/services")}
+              className="button-press rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/login", {
-                state: { from: "/checkout" },
-              })
-            }
-            className="button-press rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Login
-          </button>
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/login", {
+                  state: { from: "/checkout" },
+                })
+              }
+              className="button-press rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Login
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   if (orderSuccess && placedOrder) {
     return (
@@ -484,7 +625,7 @@ export function Checkout() {
                     id="city"
                     value={form.city}
                     onChange={(e) => updateField("city", e.target.value)}
-                    placeholder="City"
+                    placeholder="Province / City"
                     required
                     className="mt-2"
                   />
@@ -589,7 +730,7 @@ export function Checkout() {
 
               <div className="flex justify-between text-base font-bold text-stone-900">
                 <span>Product Subtotal</span>
-                <span>{formatMoney(total)}</span>
+                <span>{formatMoney(displayedSubtotal)}</span>
               </div>
             </div>
           </Card>
