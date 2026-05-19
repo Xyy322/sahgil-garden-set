@@ -271,6 +271,57 @@ const [inquiriesError, setInquiriesError] = useState("");
     return () => unsubscribe();
   }, [authLoading, user, role]);
 
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setInquiries([]);
+      setInquiriesError("You must be logged in as admin to view inquiries.");
+      setLoadingInquiries(false);
+      return;
+    }
+
+    if (role !== "admin") {
+      setInquiries([]);
+      setInquiriesError("Only administrators can view inquiries.");
+      setLoadingInquiries(false);
+      return;
+    }
+
+    setLoadingInquiries(true);
+    setInquiriesError("");
+
+    const q = query(collection(db, "inquiries"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const mapped = snapshot.docs.map((document) => {
+          const data = document.data();
+
+          return {
+            id: document.id,
+            adminRead: data.adminRead === true,
+          };
+        });
+
+        setInquiries(mapped);
+        setInquiriesError("");
+        setLoadingInquiries(false);
+      },
+      (error) => {
+        console.error("Admin dashboard inquiries listener error:", error);
+        setInquiries([]);
+        setInquiriesError(error.message || "Failed to load inquiries.");
+        setLoadingInquiries(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [authLoading, user, role]);
+
   const pendingOrders = useMemo(
     () => orders.filter((order) => order.status === "Pending").length,
     [orders]
@@ -304,6 +355,11 @@ const [inquiriesError, setInquiriesError] = useState("");
         .length,
     [appointments]
   );
+
+  const unreadInquiries = useMemo(
+  () => inquiries.filter((inquiry) => inquiry.adminRead !== true).length,
+  [inquiries]
+);
 
   const ordersByDay = useMemo(() => {
     const grouped = new Map<
@@ -419,7 +475,7 @@ const [inquiriesError, setInquiriesError] = useState("");
     }
   };
 
-  if (authLoading || loadingOrders || loadingAppointments) {
+  if (authLoading || loadingOrders || loadingAppointments || loadingInquiries) {
     return (
       <div className="flex items-center justify-center rounded-2xl border border-border bg-card p-10 text-muted-foreground">
         Loading dashboard...
@@ -427,27 +483,33 @@ const [inquiriesError, setInquiriesError] = useState("");
     );
   }
 
-  if (ordersError || appointmentsError) {
-    return (
-      <div className="space-y-3">
-        {ordersError && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
-            {ordersError}
-          </div>
-        )}
+  if (ordersError || appointmentsError || inquiriesError) {
+  return (
+    <div className="space-y-3">
+      {ordersError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          {ordersError}
+        </div>
+      )}
 
-        {appointmentsError && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
-            {appointmentsError}
-          </div>
-        )}
-      </div>
-    );
-  }
+      {appointmentsError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          {appointmentsError}
+        </div>
+      )}
+
+      {inquiriesError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          {inquiriesError}
+        </div>
+      )}
+    </div>
+  );
+}
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 md:gap-6">
         <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <Clock className="h-6 w-6" />
@@ -497,6 +559,21 @@ const [inquiriesError, setInquiriesError] = useState("");
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
             <CheckCircle className="h-6 w-6" />
           </div>
+
+          <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
+    <MessageSquare className="h-6 w-6" />
+  </div>
+
+  <div>
+    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      Unread Inquiries
+    </p>
+    <h3 className="text-2xl font-bold text-card-foreground">
+      {unreadInquiries}
+    </h3>
+  </div>
+</div>
 
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
