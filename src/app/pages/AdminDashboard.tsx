@@ -586,8 +586,8 @@ const [inquiriesError, setInquiriesError] = useState("");
   </div>
 </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Orders Trend</p>
@@ -640,7 +640,7 @@ const [inquiriesError, setInquiriesError] = useState("");
           </ChartContainer>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="text-sm text-muted-foreground">
@@ -657,23 +657,23 @@ const [inquiriesError, setInquiriesError] = useState("");
           </div>
 
           <ChartContainer
-            config={{
-              appointments: {
-                label: "Appointments",
-                color: "hsl(var(--primary))",
-              },
-            }}
-            className="h-[320px]"
-          >
+  config={{
+    appointments: {
+      label: "Appointments",
+      color: "hsl(var(--primary))",
+    },
+  }}
+  className="h-[320px] w-full min-w-0 overflow-hidden"
+>
             {appointmentsByDay.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 No appointment data yet.
               </div>
             ) : (
               <AreaChart
-                data={appointmentsByDay}
-                margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
-              >
+  data={appointmentsByDay}
+  margin={{ top: 10, right: 12, left: -20, bottom: 0 }}
+>
                 <defs>
                   <linearGradient
                     id="appointmentsGradient"
@@ -699,7 +699,13 @@ const [inquiriesError, setInquiriesError] = useState("");
                   stroke="hsl(var(--border))"
                   vertical={false}
                 />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
+               <XAxis
+  dataKey="date"
+  tickLine={false}
+  axisLine={false}
+  minTickGap={24}
+  tickMargin={8}
+/>
                 <YAxis
                   tickLine={false}
                   axisLine={false}
