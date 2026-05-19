@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Leaf,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -505,8 +506,12 @@ export function CustomerDashboard() {
       return;
     }
 
-    setCancelling(true);
-    setAppointmentsError("");
+    setCancelAppointmentId(null);
+setExpandedAppointment(null);
+
+toast.success("Appointment cancelled", {
+  description: "Your appointment has been cancelled successfully.",
+});
 
     try {
       const lockDates =
@@ -543,11 +548,16 @@ export function CustomerDashboard() {
       setExpandedAppointment(null);
     } catch (error) {
       console.error("Cancel appointment error:", error);
-      setAppointmentsError(
-        error instanceof Error
-          ? error.message
-          : "Failed to cancel appointment."
-      );
+      const message =
+  error instanceof Error
+    ? error.message
+    : "Failed to cancel appointment.";
+
+setAppointmentsError(message);
+
+toast.error("Failed to cancel appointment", {
+  description: message,
+});
     } finally {
       setCancelling(false);
     }

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { MapPin, Phone, Mail, Send, Leaf } from "lucide-react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-
+import { toast } from "sonner";
 import { db } from "../../utils/firebase/config";
 import { useAuth } from "../context/AuthContext";
 import { createNotification } from "../../utils/createNotification";
@@ -130,12 +130,20 @@ export function Contact() {
         inquiryType: "General Inquiry",
         message: "",
       });
+
+      toast.success("Inquiry submitted", {
+  description: "Your message has been sent successfully.",
+});
+
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to send message. Please try again."
-      );
+      const message =
+  err instanceof Error ? err.message : "Failed to submit inquiry.";
+
+setError(message);
+
+toast.error("Failed to submit inquiry", {
+  description: message,
+});
     } finally {
       setLoading(false);
     }
