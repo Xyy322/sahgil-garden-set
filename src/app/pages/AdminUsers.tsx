@@ -125,15 +125,42 @@ function normalizeCustomer(id: string, data: any): CustomerRecord {
   };
 }
 
+function normalizeOrderStatus(status: unknown): string {
+  if (typeof status !== "string") return "Pending";
+
+  const value = status.trim().toLowerCase();
+
+  if (value === "pending") return "Pending";
+  if (value === "processing") return "Processing";
+  if (value === "shipped") return "Shipped";
+  if (value === "delivered") return "Delivered";
+  if (value === "cancelled" || value === "canceled") return "Cancelled";
+
+  return "Pending";
+}
+
+function normalizePaymentMethod(method: unknown): string {
+  if (typeof method !== "string") return "Cash on Delivery";
+
+  const value = method.trim().toLowerCase();
+
+  if (
+    value === "cash" ||
+    value === "cod" ||
+    value === "cash on delivery"
+  ) {
+    return "Cash on Delivery";
+  }
+
+  return method;
+}
+
 function normalizeOrder(id: string, data: any): CustomerOrder {
   return {
     id,
     total: Number(data.total) || 0,
-    status: typeof data.status === "string" ? data.status : "Pending",
-    paymentMethod:
-      typeof data.paymentMethod === "string"
-        ? data.paymentMethod
-        : "Cash on Delivery",
+    status: normalizeOrderStatus(data.status),
+    paymentMethod: normalizePaymentMethod(data.paymentMethod),
     createdAt: data.createdAt ?? null,
   };
 }
@@ -163,6 +190,8 @@ function normalizeInquiry(id: string, data: any): CustomerInquiry {
   };
 }
 
+const CUSTOMERS_PER_PAGE = 6;
+
 function statusBadgeClass(status: string) {
   const value = status.toLowerCase();
 
@@ -185,8 +214,9 @@ export function AdminUsers() {
   const [error, setError] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<CustomerRecord | null>(null);
+const [currentPage, setCurrentPage] = useState(1);
+const [selectedCustomer, setSelectedCustomer] =
+  useState<CustomerRecord | null>(null);
 
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
@@ -374,6 +404,30 @@ export function AdminUsers() {
     });
   }, [customers, searchTerm]);
 
+  const totalPages = Math.max(
+  1,
+  Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE)
+);
+
+const pageStartIndex = (currentPage - 1) * CUSTOMERS_PER_PAGE;
+const pageEndIndex = Math.min(
+  pageStartIndex + CUSTOMERS_PER_PAGE,
+  filteredCustomers.length
+);
+
+const paginatedCustomers = filteredCustomers.slice(
+  pageStartIndex,
+  pageEndIndex
+);
+
+useEffect(() => {
+  setCurrentPage(1);
+}, [searchTerm]);
+
+useEffect(() => {
+  setCurrentPage((prev) => Math.min(prev, totalPages));
+}, [totalPages]);
+
   if (authLoading || loading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
@@ -424,17 +478,28 @@ export function AdminUsers() {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div className="relative w-full md:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search customer name, email, phone, or address..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-      </div>
+  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="relative w-full md:max-w-md">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <input
+        type="text"
+        placeholder="Search customer name, email, phone, or address..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary"
+      />
+    </div>
+
+    <p className="text-sm text-muted-foreground">
+      Showing{" "}
+      {filteredCustomers.length === 0
+        ? "0"
+        : `${pageStartIndex + 1}-${pageEndIndex}`}{" "}
+      of {filteredCustomers.length} customer
+      {filteredCustomers.length === 1 ? "" : "s"}
+    </p>
+  </div>
+</div>
 
       {filteredCustomers.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-10 text-center text-muted-foreground">
@@ -442,7 +507,7 @@ export function AdminUsers() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {filteredCustomers.map((item) => (
+          {paginatedCustomers.map((item) => (
             <div
               key={item.id}
               className="rounded-2xl border border-border bg-card p-5 shadow-sm"
@@ -492,6 +557,36 @@ export function AdminUsers() {
               </div>
             </div>
           ))}
+                </div>
+      )}
+
+      {filteredCustomers.length > CUSTOMERS_PER_PAGE && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </p>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={currentPage === totalPages}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+              }
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 
@@ -711,8 +806,10 @@ function RecordSection({
       </div>
 
       {hasItems ? (
-        <div className="space-y-3">{children}</div>
-      ) : (
+  <div className="max-h-[320px] space-y-3 overflow-y-auto pr-2">
+    {children}
+  </div>
+) : (
         <div className="rounded-xl border border-border bg-background p-5 text-sm text-muted-foreground">
           {emptyText}
         </div>
