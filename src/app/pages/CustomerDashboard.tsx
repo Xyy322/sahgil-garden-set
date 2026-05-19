@@ -903,8 +903,8 @@ const visibleAppointments = filteredAppointments.slice(
                                   <div className="flex items-center justify-between min-w-[400px]">
                                     {ORDER_STEPS.map((step, index) => {
                                       const StepIcon = step.icon;
-const isCompleted = index <= currentStep;
-const isCurrent = index === currentStep;
+                                      const isCompleted = index <= currentStep;
+                                      const isCurrent = index === currentStep;
 
 return (
                                         <div
