@@ -527,7 +527,7 @@ const [appointmentPage, setAppointmentPage] = useState(1);
     return () => unsubscribe();
   }, [authLoading, user?.uid, role]);
 
-  const handleConfirmCancel = async () => {
+    const handleConfirmCancel = async () => {
     if (!cancelAppointmentId) return;
 
     const appointment = appointments.find(
@@ -535,6 +535,20 @@ const [appointmentPage, setAppointmentPage] = useState(1);
     );
 
     if (!appointment) {
+      setCancelAppointmentId(null);
+      return;
+    }
+
+    if (appointment.status !== "pending") {
+      setAppointmentsError(
+        "Only pending appointment requests can be cancelled directly. Please contact the admin for approved appointments."
+      );
+
+      toast.error("Cancellation not allowed", {
+        description:
+          "Only pending appointment requests can be cancelled directly.",
+      });
+
       setCancelAppointmentId(null);
       return;
     }
@@ -566,30 +580,43 @@ const [appointmentPage, setAppointmentPage] = useState(1);
       if (user?.uid) {
         await createNotification({
           userId: user.uid,
-          title: "Appointment Update",
-          message: "Your appointment has been cancelled.",
+          title: "Appointment Request Cancelled",
+          message: "Your pending appointment request has been cancelled.",
           type: "appointment",
           statusRefId: cancelAppointmentId,
         });
       }
 
+      await createNotification({
+        userId: "admin",
+        title: "Appointment Request Cancelled",
+        message: `${
+          appointment.customerName || "A customer"
+        } cancelled a pending appointment request scheduled on ${
+          appointment.date || "the selected date"
+        }.`,
+        type: "appointment",
+        statusRefId: cancelAppointmentId,
+      });
+
       setCancelAppointmentId(null);
       setExpandedAppointment(null);
 
-      toast.success("Appointment cancelled", {
-        description: "Your appointment has been cancelled successfully.",
+      toast.success("Request cancelled", {
+        description:
+          "Your pending appointment request has been cancelled successfully.",
       });
     } catch (error) {
-      console.error("Cancel appointment error:", error);
+      console.error("Cancel appointment request error:", error);
 
       const message =
         error instanceof Error
           ? error.message
-          : "Failed to cancel appointment.";
+          : "Failed to cancel appointment request.";
 
       setAppointmentsError(message);
 
-      toast.error("Failed to cancel appointment", {
+      toast.error("Failed to cancel request", {
         description: message,
       });
     } finally {
@@ -1298,15 +1325,20 @@ const visibleAppointments = filteredAppointments.slice(
 
                             {apt.status === "pending" && (
                               <div className="mt-4 flex gap-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCancelAppointmentId(appointmentId);
-                                  }}
-                                  className="flex-1 rounded-xl bg-red-100 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-200"
-                                >
-                                  Cancel Appointment
-                                </button>
+                                {apt.status === "pending" ? (
+  <button
+    type="button"
+    onClick={() => setCancelAppointmentId(appointmentId)}
+    className="mt-4 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 sm:w-auto"
+  >
+    Cancel Request
+  </button>
+) : apt.status === "approved" ? (
+  <p className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-800">
+    This appointment has already been approved. Please contact the admin for
+    changes or cancellation.
+  </p>
+) : null}
                               </div>
                             )}
                           </div>
@@ -1439,24 +1471,24 @@ const visibleAppointments = filteredAppointments.slice(
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Appointment?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this appointment? This will free
-              the reserved appointment dates.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Cancel Appointment Request?</AlertDialogTitle>
+<AlertDialogDescription>
+  Are you sure you want to cancel this pending appointment request? This will
+  release the reserved date and notify the admin.
+</AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={cancelling}>
-              Keep Appointment
-            </AlertDialogCancel>
+  Keep Request
+</AlertDialogCancel>
 
             <AlertDialogAction
               onClick={handleConfirmCancel}
               disabled={cancelling}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {cancelling ? "Cancelling..." : "Yes, Cancel It"}
+              {cancelling ? "Cancelling..." : "Yes, Cancel Request"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
