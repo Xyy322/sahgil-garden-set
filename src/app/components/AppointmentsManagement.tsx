@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   onSnapshot,
@@ -7,7 +7,19 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import { Check, X, Clock, User, Mail, Phone } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  CheckCircle,
+  Clock,
+  Eye,
+  Mail,
+  Phone,
+  Search,
+  User,
+  X,
+  XCircle,
+} from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
@@ -21,6 +33,12 @@ import {
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { useAuth } from "../context/AuthContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 type AppointmentStatus =
   | "pending"
@@ -29,6 +47,8 @@ type AppointmentStatus =
   | "completed"
   | "cancelled";
 
+type FilterStatus = "all" | AppointmentStatus;
+
 const VALID_STATUSES: AppointmentStatus[] = [
   "pending",
   "approved",
@@ -36,6 +56,17 @@ const VALID_STATUSES: AppointmentStatus[] = [
   "completed",
   "cancelled",
 ];
+
+const FILTER_OPTIONS: FilterStatus[] = [
+  "all",
+  "pending",
+  "approved",
+  "completed",
+  "rejected",
+  "cancelled",
+];
+
+const APPOINTMENTS_PER_PAGE = 5;
 
 function isValidStatus(status: unknown): status is AppointmentStatus {
   return VALID_STATUSES.includes(status as AppointmentStatus);
@@ -105,16 +136,34 @@ function safeAppointmentSort(a: Appointment, b: Appointment) {
 function statusBadge(status: AppointmentStatus) {
   switch (status) {
     case "approved":
-      return "border-[#7A9E7E] bg-[#A3B18A]/35 text-[#1F4D2E]";
+      return "border-blue-200 bg-blue-50 text-blue-700";
     case "rejected":
-      return "border-[#A3B18A] bg-[#EDE6DA] text-[#2F6B3F]";
+      return "border-red-200 bg-red-50 text-red-700";
     case "completed":
-      return "border-[#2F6B3F]/40 bg-[#7A9E7E]/30 text-[#1F4D2E]";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "cancelled":
-      return "border-[#A3B18A]/80 bg-[#F6F1E6] text-[#7A9E7E]";
+      return "border-stone-200 bg-stone-100 text-stone-700";
     default:
-      return "border-[#A3B18A] bg-[#EDE6DA] text-[#2F6B3F]";
+      return "border-amber-200 bg-amber-50 text-amber-700";
   }
+}
+
+function formatStatus(status: unknown) {
+  const value = typeof status === "string" && status.trim() ? status : "pending";
+
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function getReservedDates(appointment: Appointment) {
+  if (appointment.lockDates && appointment.lockDates.length > 0) {
+    return appointment.lockDates;
+  }
+
+  if (!appointment.date) {
+    return [];
+  }
+
+  return getBlockedDates(parseDateKey(appointment.date));
 }
 
 export function AppointmentsManagement() {
@@ -122,12 +171,19 @@ export function AppointmentsManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterStatus>("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
+
   const { user, role, loading: authLoading } = useAuth();
 
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<
-    "all" | "pending" | "approved" | "completed"
-  >("pending");
+  const selectedLiveAppointment = selectedAppointment
+    ? appointments.find((apt) => apt.id === selectedAppointment.id) ||
+      selectedAppointment
+    : null;
 
   useEffect(() => {
     if (authLoading) {
@@ -193,12 +249,7 @@ export function AppointmentsManagement() {
       setUpdatingId(id);
       setError("");
 
-      const lockDates =
-        appointment.lockDates && appointment.lockDates.length > 0
-          ? appointment.lockDates
-          : appointment.date
-          ? getBlockedDates(parseDateKey(appointment.date))
-          : [];
+      const lockDates = getReservedDates(appointment);
 
       const batch = writeBatch(db);
 
@@ -211,25 +262,25 @@ export function AppointmentsManagement() {
         const lockRef = doc(db, "appointmentLocks", date);
 
         const shouldReleaseLock =
-  newStatus === "rejected" ||
-  newStatus === "cancelled" ||
-  newStatus === "completed";
+          newStatus === "rejected" ||
+          newStatus === "cancelled" ||
+          newStatus === "completed";
 
-if (shouldReleaseLock) {
-  batch.delete(lockRef);
-} else {
-  batch.set(
-    lockRef,
-    {
-      date,
-      appointmentId: id,
-      userId: appointment.userId || "",
-      status: newStatus,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-}
+        if (shouldReleaseLock) {
+          batch.delete(lockRef);
+        } else {
+          batch.set(
+            lockRef,
+            {
+              date,
+              appointmentId: id,
+              userId: appointment.userId || "",
+              status: newStatus,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
       });
 
       await batch.commit();
@@ -255,179 +306,221 @@ if (shouldReleaseLock) {
     }
   };
 
-  const filteredAppointments = appointments.filter((apt) => {
-    if (filter === "all") return true;
-    return apt.status === filter;
-  });
+  const filteredAppointments = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+
+    return appointments.filter((appointment) => {
+      const matchesStatus =
+        filter === "all" || appointment.status === filter;
+
+      const searchableText = [
+        appointment.customerName,
+        appointment.customerEmail,
+        appointment.customerPhone,
+        appointment.date,
+        appointment.time,
+        appointment.status,
+        appointment.description,
+        appointment.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !keyword || searchableText.includes(keyword);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [appointments, filter, searchTerm]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredAppointments.length / APPOINTMENTS_PER_PAGE)
+  );
+
+  const pageStartIndex = (currentPage - 1) * APPOINTMENTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + APPOINTMENTS_PER_PAGE,
+    filteredAppointments.length
+  );
+
+  const paginatedAppointments = filteredAppointments.slice(
+    pageStartIndex,
+    pageEndIndex
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   const stats = {
+    total: appointments.length,
     pending: appointments.filter((a) => a.status === "pending").length,
     approved: appointments.filter((a) => a.status === "approved").length,
-    total: appointments.length,
+    completed: appointments.filter((a) => a.status === "completed").length,
+    rejected: appointments.filter((a) => a.status === "rejected").length,
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
-      <div className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-6 shadow-[0_12px_30px_rgba(31,77,46,0.14)]">
-        <p className="text-sm text-[#2F6B3F]">Loading appointments...</p>
+      <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
+        Loading appointments...
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 rounded-3xl bg-gradient-to-b from-[#F6F1E6] via-[#F6F1E6] to-[#EDE6DA]/70 p-1">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-5 shadow-[0_10px_24px_rgba(31,77,46,0.12)]">
-          <p className="mb-1 text-xs font-medium uppercase tracking-[0.16em] text-[#7A9E7E]">
-            Total Appointments
-          </p>
-          <h3 className="text-2xl font-semibold text-[#1F4D2E]">
-            {stats.total}
-          </h3>
-        </div>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Appointment Management
+        </p>
 
-        <div className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-5 shadow-[0_10px_24px_rgba(31,77,46,0.12)]">
-          <p className="mb-1 text-xs font-medium uppercase tracking-[0.16em] text-[#7A9E7E]">
-            Pending Approval
-          </p>
-          <h3 className="text-2xl font-semibold text-[#1F4D2E]">
-            {stats.pending}
-          </h3>
-        </div>
+        <h1 className="mt-1 text-2xl font-bold text-card-foreground md:text-3xl">
+          Landscaping Appointments
+        </h1>
 
-        <div className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-5 shadow-[0_10px_24px_rgba(31,77,46,0.12)]">
-          <p className="mb-1 text-xs font-medium uppercase tracking-[0.16em] text-[#7A9E7E]">
-            Approved
-          </p>
-          <h3 className="text-2xl font-semibold text-[#1F4D2E]">
-            {stats.approved}
-          </h3>
-        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage customer appointment requests, approval status, and 3-day
+          schedule reservations.
+        </p>
       </div>
 
-      <div className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-5 shadow-[0_14px_34px_rgba(31,77,46,0.14)] md:p-7">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <SummaryCard
+          label="Total"
+          value={stats.total}
+          icon={<CalendarDays className="h-5 w-5" />}
+        />
+        <SummaryCard
+          label="Pending"
+          value={stats.pending}
+          icon={<Clock className="h-5 w-5" />}
+          highlight
+        />
+        <SummaryCard
+          label="Approved"
+          value={stats.approved}
+          icon={<Check className="h-5 w-5" />}
+        />
+        <SummaryCard
+          label="Completed"
+          value={stats.completed}
+          icon={<CheckCircle className="h-5 w-5" />}
+        />
+        <SummaryCard
+          label="Rejected"
+          value={stats.rejected}
+          icon={<XCircle className="h-5 w-5" />}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-wide text-[#1F4D2E]">
+            <h2 className="text-xl font-bold text-card-foreground">
               Appointment Requests
             </h2>
-            <p className="text-sm leading-relaxed text-[#2F6B3F]">
-              Manage appointment lifecycle and customer scheduling status.
+
+            <p className="text-sm text-muted-foreground">
+              Showing{" "}
+              {filteredAppointments.length === 0
+                ? "0"
+                : `${pageStartIndex + 1}-${pageEndIndex}`}{" "}
+              of {filteredAppointments.length} filtered appointment
+              {filteredAppointments.length === 1 ? "" : "s"}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {(["all", "pending", "approved", "completed"] as const).map(
-              (status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilter(status)}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all duration-500 ${
-                    filter === status
-                      ? "border-[#2F6B3F] bg-gradient-to-r from-[#1F4D2E] to-[#2F6B3F] text-[#F6F1E6] shadow-[0_8px_18px_rgba(31,77,46,0.2)]"
-                      : "border-[#A3B18A] bg-[#EDE6DA] text-[#1F4D2E] hover:-translate-y-0.5 hover:bg-[#F6F1E6]"
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              )
-            )}
+          <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-3xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search customer, email, phone, date, or details..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as FilterStatus)}
+              className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Filter appointments by status"
+            >
+              {FILTER_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status === "all" ? "All Status" : formatStatus(status)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
         {error && (
-          <Alert className="mb-6 border-[#A3B18A] bg-[#EDE6DA]">
-            <AlertDescription className="text-sm text-[#1F4D2E]">
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertDescription className="text-sm text-red-700">
               {error}
             </AlertDescription>
           </Alert>
         )}
 
         {filteredAppointments.length === 0 ? (
-          <div className="rounded-2xl border border-[#A3B18A]/70 bg-[#EDE6DA]/70 py-10 text-center text-sm text-[#2F6B3F]">
-            No {filter !== "all" ? filter : ""} appointments found.
+          <div className="rounded-xl border border-border bg-background py-10 text-center text-sm text-muted-foreground">
+            No appointments found.
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredAppointments.map((apt) => (
+          <div className="max-h-[720px] space-y-3 overflow-y-auto pr-2">
+            {paginatedAppointments.map((appointment) => (
               <div
-                key={apt.id}
-                className="rounded-3xl border border-[#A3B18A]/60 bg-[#F6F1E6] p-4 shadow-[0_8px_22px_rgba(31,77,46,0.1)] sm:p-5"
+                key={appointment.id}
+                className="rounded-2xl border border-border bg-background p-4 shadow-sm"
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex-1">
-                    <div className="mb-3 flex items-center gap-3">
-                      <div className="rounded-xl border border-[#A3B18A]/70 bg-[#EDE6DA] p-2">
-                        <Clock className="h-5 w-5 text-[#2F6B3F]" />
-                      </div>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-foreground">
+                        {appointment.date
+                          ? formatDisplayDate(appointment.date)
+                          : "No date provided"}
+                      </p>
 
-                      <div>
-                        <p className="font-semibold text-[#1F4D2E]">
-                          {apt.date
-                            ? formatDisplayDate(apt.date)
-                            : "No date provided"}
-                        </p>
-                        <p className="text-sm text-[#2F6B3F]">
-                          {apt.time ? formatTime(apt.time) : "No time provided"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-3">
                       <span
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${statusBadge(
-                          apt.status as AppointmentStatus
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
+                          appointment.status as AppointmentStatus
                         )}`}
                       >
-                        {(apt.status || "pending").charAt(0).toUpperCase() +
-                          (apt.status || "pending").slice(1)}
+                        {formatStatus(appointment.status)}
                       </span>
                     </div>
-                  </div>
 
-                  <div className="flex-1 rounded-2xl border border-[#A3B18A]/70 bg-[#EDE6DA]/80 p-3">
-                    <p className="mb-2 text-sm font-semibold text-[#1F4D2E]">
-                      Customer Details
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {appointment.time
+                        ? formatTime(appointment.time)
+                        : "No time provided"}{" "}
+                      • {appointment.customerName || "Unknown customer"}
                     </p>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex items-center gap-2 text-[#1F4D2E]">
-                        <User className="h-4 w-4 flex-shrink-0 text-[#2F6B3F]" />
-                        <span>{apt.customerName || "Unknown customer"}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[#2F6B3F]">
-                        <Mail className="h-4 w-4 flex-shrink-0 text-[#7A9E7E]" />
-                        <span className="truncate">
-                          {apt.customerEmail || "No email provided"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[#2F6B3F]">
-                        <Phone className="h-4 w-4 flex-shrink-0 text-[#7A9E7E]" />
-                        <span>{apt.customerPhone || "No phone provided"}</span>
-                      </div>
-                    </div>
+
+                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
+                      {appointment.description || "No project details provided."}
+                    </p>
                   </div>
 
-                  <div className="flex-1">
-                    {apt.description && (
-                      <div className="mb-3 rounded-2xl border border-[#A3B18A]/70 bg-[#EDE6DA]/70 p-3">
-                        <p className="mb-1 text-sm font-semibold text-[#1F4D2E]">
-                          Project Details
-                        </p>
-                        <p className="text-sm leading-relaxed text-[#2F6B3F] line-clamp-3">
-                          {apt.description}
-                        </p>
-                      </div>
-                    )}
-
-                    {apt.status === "pending" && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    {appointment.status === "pending" && (
+                      <>
                         <Button
                           size="sm"
                           onClick={() =>
-                            handleStatusChange(apt.id || "", "approved")
+                            handleStatusChange(appointment.id || "", "approved")
                           }
-                          disabled={updatingId === apt.id}
-                          className="h-9 w-full bg-primary text-primary-foreground hover:opacity-90"
+                          disabled={updatingId === appointment.id}
                         >
                           <Check className="mr-1 h-4 w-4" />
                           Approve
@@ -436,59 +529,313 @@ if (shouldReleaseLock) {
                         <Button
                           size="sm"
                           onClick={() =>
-                            handleStatusChange(apt.id || "", "rejected")
+                            handleStatusChange(appointment.id || "", "rejected")
                           }
-                          disabled={updatingId === apt.id}
+                          disabled={updatingId === appointment.id}
                           variant="secondary"
-                          className="h-9 w-full"
                         >
                           <X className="mr-1 h-4 w-4" />
                           Reject
                         </Button>
-                      </div>
+                      </>
                     )}
 
-                    {apt.status === "approved" && (
+                    {appointment.status === "approved" && (
                       <Button
                         size="sm"
                         onClick={() =>
-                          handleStatusChange(apt.id || "", "completed")
+                          handleStatusChange(appointment.id || "", "completed")
                         }
-                        disabled={updatingId === apt.id}
-                        className="h-9 w-full bg-primary text-primary-foreground hover:opacity-90"
+                        disabled={updatingId === appointment.id}
                       >
                         Mark Complete
                       </Button>
                     )}
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedAppointment(appointment)}
+                    >
+                      <Eye className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
                   </div>
                 </div>
-
-                {(apt.status === "pending" || apt.status === "approved") &&
-  apt.date && (
-                    <div className="mt-4 border-t border-[#A3B18A]/60 pt-4">
-                      <p className="mb-2 text-xs text-[#2F6B3F]">
-                        Reserved dates (selected date + next 2 days):
-                      </p>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {getBlockedDates(parseDateKey(apt.date)).map(
-                          (date: string, index: number) => (
-                            <span
-                              key={`${apt.id}-blocked-${date}-${index}`}
-                              className="rounded-full border border-[#A3B18A] bg-[#EDE6DA] px-2.5 py-1 text-xs text-[#1F4D2E]"
-                            >
-                              {date}
-                            </span>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
               </div>
             ))}
           </div>
         )}
+
+        {filteredAppointments.length > APPOINTMENTS_PER_PAGE && (
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
+
+      <Dialog
+        open={!!selectedAppointment}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAppointment(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Appointment Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedLiveAppointment && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-border bg-background p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Appointment Schedule
+                    </p>
+                    <h3 className="text-lg font-bold text-foreground">
+                      {selectedLiveAppointment.date
+                        ? formatDisplayDate(selectedLiveAppointment.date)
+                        : "No date provided"}
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {selectedLiveAppointment.time
+                        ? formatTime(selectedLiveAppointment.time)
+                        : "No time provided"}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
+                      selectedLiveAppointment.status as AppointmentStatus
+                    )}`}
+                  >
+                    {formatStatus(selectedLiveAppointment.status)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <InfoBox title="Customer Details">
+                  <InfoRow
+                    icon={<User className="h-4 w-4" />}
+                    label="Name"
+                    value={selectedLiveAppointment.customerName}
+                  />
+                  <InfoRow
+                    icon={<Mail className="h-4 w-4" />}
+                    label="Email"
+                    value={selectedLiveAppointment.customerEmail}
+                  />
+                  <InfoRow
+                    icon={<Phone className="h-4 w-4" />}
+                    label="Phone"
+                    value={selectedLiveAppointment.customerPhone}
+                  />
+                </InfoBox>
+
+                <InfoBox title="Service Details">
+                  <InfoRow
+                    icon={<CalendarDays className="h-4 w-4" />}
+                    label="Service"
+                    value="Landscaping Consultation"
+                  />
+                  <InfoRow
+                    icon={<Clock className="h-4 w-4" />}
+                    label="3-Day Lock"
+                    value={
+                      selectedLiveAppointment.status === "pending" ||
+                      selectedLiveAppointment.status === "approved"
+                        ? "Active"
+                        : "Released"
+                    }
+                  />
+                </InfoBox>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-foreground">
+                  Project Details
+                </p>
+                <p className="whitespace-pre-wrap rounded-xl border border-border bg-muted/40 p-4 text-sm leading-relaxed text-foreground">
+                  {selectedLiveAppointment.description ||
+                    "No project details provided."}
+                </p>
+              </div>
+
+              {(selectedLiveAppointment.status === "pending" ||
+                selectedLiveAppointment.status === "approved") &&
+                selectedLiveAppointment.date && (
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-foreground">
+                      Reserved Dates
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {getReservedDates(selectedLiveAppointment).map((date) => (
+                        <span
+                          key={`${selectedLiveAppointment.id}-${date}`}
+                          className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground"
+                        >
+                          {date}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+                {selectedLiveAppointment.status === "pending" && (
+                  <>
+                    <Button
+                      onClick={() =>
+                        handleStatusChange(
+                          selectedLiveAppointment.id || "",
+                          "approved"
+                        )
+                      }
+                      disabled={updatingId === selectedLiveAppointment.id}
+                    >
+                      <Check className="mr-1 h-4 w-4" />
+                      Approve
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        handleStatusChange(
+                          selectedLiveAppointment.id || "",
+                          "rejected"
+                        )
+                      }
+                      disabled={updatingId === selectedLiveAppointment.id}
+                    >
+                      <X className="mr-1 h-4 w-4" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+
+                {selectedLiveAppointment.status === "approved" && (
+                  <Button
+                    onClick={() =>
+                      handleStatusChange(
+                        selectedLiveAppointment.id || "",
+                        "completed"
+                      )
+                    }
+                    disabled={updatingId === selectedLiveAppointment.id}
+                  >
+                    Mark Complete
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedAppointment(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  icon,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-5 shadow-sm ${
+        highlight
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : "border-border bg-card text-foreground"
+      }`}
+    >
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary">
+        {icon}
+      </div>
+
+      <p className="text-xs font-medium uppercase tracking-wide opacity-70">
+        {label}
+      </p>
+
+      <h3 className="mt-1 text-2xl font-bold">{value}</h3>
+    </div>
+  );
+}
+
+function InfoBox({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="mb-3 text-sm font-semibold text-card-foreground">
+        {title}
+      </p>
+
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 text-sm">
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+
+      <span className="break-words text-right text-foreground">{value}</span>
     </div>
   );
 }
