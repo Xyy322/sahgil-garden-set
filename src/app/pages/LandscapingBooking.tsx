@@ -167,10 +167,15 @@ export function LandscapingBooking() {
           where("status", "==", "approved")
         );
 
-        const [appointmentsSnap, locksSnap] = await Promise.all([
-          getDocs(approvedAppointmentsQuery),
-          getDocs(collection(db, "appointmentLocks")),
-        ]);
+        const activeLocksQuery = query(
+  collection(db, "appointmentLocks"),
+  where("status", "in", ["pending", "approved"])
+);
+
+const [appointmentsSnap, locksSnap] = await Promise.all([
+  getDocs(approvedAppointmentsQuery),
+  getDocs(activeLocksQuery),
+]);
 
         const approvedAppointments = appointmentsSnap.docs.map((document) =>
           normalizeAppointment(document.id, document.data())

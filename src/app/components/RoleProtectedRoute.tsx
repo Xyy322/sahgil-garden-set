@@ -11,7 +11,7 @@ function AccessLoader() {
 }
 
 function fallbackPathForRole(role: AppRole) {
-  return role === "admin" ? "/dashboard/admin" : "/";
+  return role === "admin" ? "/dashboard/admin" : "/dashboard/customer";
 }
 
 function AccessErrorPage({

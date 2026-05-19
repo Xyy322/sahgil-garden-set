@@ -162,8 +162,8 @@ export function Checkout() {
         },
 
         total: orderTotal,
-        paymentMethod: "Cash on Delivery",
-        status: "Pending",
+        paymentMethod: "cash",
+status: "pending",
 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

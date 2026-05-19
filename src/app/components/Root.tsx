@@ -242,7 +242,9 @@ export function Root() {
 
             <div>
               <h3 className="text-white font-semibold">Contact</h3>
-              <p className="mt-3 text-sm text-stone-400">Quezon City</p>
+              <p className="mt-3 text-sm text-stone-400">
+  Barangay Lumil, Silang, Cavite
+</p>
 
               <div className="flex gap-4 mt-4">
                 <a
@@ -336,14 +338,16 @@ export function Root() {
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleNavigate("/profile")}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium text-stone-700 hover:bg-stone-200/70 transition"
-                  >
-                    <User className="w-5 h-5 text-emerald-700" />
-                    My Profile
-                  </button>
+                  {role === "customer" && (
+  <button
+    type="button"
+    onClick={() => handleNavigate("/profile")}
+    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium text-stone-700 hover:bg-stone-200/70 transition"
+  >
+    <User className="w-5 h-5 text-emerald-700" />
+    My Profile
+  </button>
+)}
 
                   <button
                     type="button"

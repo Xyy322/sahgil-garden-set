@@ -10,7 +10,7 @@ import {
   AlertCircle,
   Eye,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query } from "firebase/firestore";
 
 import { useCart } from "../components/CartContext";

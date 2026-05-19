@@ -210,21 +210,26 @@ export function AppointmentsManagement() {
       lockDates.forEach((date) => {
         const lockRef = doc(db, "appointmentLocks", date);
 
-        if (newStatus === "rejected" || newStatus === "cancelled") {
-          batch.delete(lockRef);
-        } else {
-          batch.set(
-            lockRef,
-            {
-              date,
-              appointmentId: id,
-              userId: appointment.userId || "",
-              status: newStatus,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
+        const shouldReleaseLock =
+  newStatus === "rejected" ||
+  newStatus === "cancelled" ||
+  newStatus === "completed";
+
+if (shouldReleaseLock) {
+  batch.delete(lockRef);
+} else {
+  batch.set(
+    lockRef,
+    {
+      date,
+      appointmentId: id,
+      userId: appointment.userId || "",
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
       });
 
       await batch.commit();
@@ -458,11 +463,11 @@ export function AppointmentsManagement() {
                   </div>
                 </div>
 
-                {(apt.status === "approved" || apt.status === "completed") &&
-                  apt.date && (
+                {(apt.status === "pending" || apt.status === "approved") &&
+  apt.date && (
                     <div className="mt-4 border-t border-[#A3B18A]/60 pt-4">
                       <p className="mb-2 text-xs text-[#2F6B3F]">
-                        Blocked dates (selected date + next 2 days):
+                        Reserved dates (selected date + next 2 days):
                       </p>
 
                       <div className="flex flex-wrap gap-1.5">
