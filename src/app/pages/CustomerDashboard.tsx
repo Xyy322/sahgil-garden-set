@@ -63,10 +63,7 @@ type Order = {
   productSubtotal: number;
   deliveryFee: number | null;
   finalTotal: number | null;
-
-  // Legacy field. In this system, this means product subtotal only.
   total: number;
-
   deliveryNote?: string;
   status: string;
   paymentMethod: string;
@@ -80,12 +77,18 @@ type Order = {
   createdAt: unknown;
 };
 
+type CustomerAppointment = Appointment & {
+  customerAddress?: string;
+};
+
 const ORDER_STEPS = [
   { key: "Pending", label: "Order Placed", icon: PackageIcon },
   { key: "Processing", label: "Processing", icon: PackageIcon },
   { key: "Shipped", label: "Shipped", icon: Truck },
   { key: "Delivered", label: "Delivered", icon: CheckCircle },
 ];
+
+const ITEMS_PER_PAGE = 5;
 
 function getStatusStep(status: string): number {
   const index = ORDER_STEPS.findIndex(
@@ -192,9 +195,17 @@ function getTimeMillis(value: any): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function getFallbackId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `item-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function normalizeOrderItem(item: any) {
   return {
-    id: typeof item?.id === "string" ? item.id : crypto.randomUUID(),
+    id: typeof item?.id === "string" ? item.id : getFallbackId(),
     name: typeof item?.name === "string" ? item.name : "Unnamed Item",
     price: Number(item?.price) || 0,
     quantity: Number(item?.quantity) || 1,
@@ -233,27 +244,20 @@ function normalizeOrder(id: string, data: any): Order {
           ? shippingInfo.postalCode
           : "",
     },
-
     productSubtotal: Number(data.productSubtotal ?? data.total) || 0,
-
     deliveryFee:
       typeof data.deliveryFee === "number" && Number.isFinite(data.deliveryFee)
         ? data.deliveryFee
         : null,
-
     finalTotal:
       typeof data.finalTotal === "number" && Number.isFinite(data.finalTotal)
         ? data.finalTotal
         : null,
-
-    // Legacy total means product subtotal only.
     total: Number(data.productSubtotal ?? data.total) || 0,
-
     deliveryNote:
       typeof data.deliveryNote === "string"
         ? data.deliveryNote
         : "Delivery fee is not included and will be confirmed by the admin based on your location.",
-
     status: normalizeCustomerOrderStatus(data.status),
     paymentMethod: normalizeCustomerPaymentMethod(data.paymentMethod),
     items: Array.isArray(data.items) ? data.items.map(normalizeOrderItem) : [],
@@ -261,7 +265,7 @@ function normalizeOrder(id: string, data: any): Order {
   };
 }
 
-function normalizeAppointment(id: string, data: any): Appointment {
+function normalizeAppointment(id: string, data: any): CustomerAppointment {
   return {
     id,
     userId: typeof data.userId === "string" ? data.userId : "",
@@ -271,12 +275,12 @@ function normalizeAppointment(id: string, data: any): Appointment {
       typeof data.customerEmail === "string" ? data.customerEmail : "",
     customerPhone:
       typeof data.customerPhone === "string" ? data.customerPhone : "",
-      customerAddress:
-  typeof data.customerAddress === "string"
-    ? data.customerAddress
-    : typeof data.address === "string"
-    ? data.address
-    : "",
+    customerAddress:
+      typeof data.customerAddress === "string" && data.customerAddress.trim()
+        ? data.customerAddress
+        : typeof data.address === "string" && data.address.trim()
+        ? data.address
+        : "",
     date:
       typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
         ? data.date
@@ -369,7 +373,7 @@ export function CustomerDashboard() {
   const { user, role, loading: authLoading } = useAuth();
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
 
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -381,6 +385,11 @@ export function CustomerDashboard() {
   const [expandedAppointment, setExpandedAppointment] = useState<string | null>(
     null
   );
+
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [appointmentFilter, setAppointmentFilter] = useState("all");
+  const [orderPage, setOrderPage] = useState(1);
+const [appointmentPage, setAppointmentPage] = useState(1);
 
   const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(
     null
@@ -512,12 +521,8 @@ export function CustomerDashboard() {
       return;
     }
 
-    setCancelAppointmentId(null);
-setExpandedAppointment(null);
-
-toast.success("Appointment cancelled", {
-  description: "Your appointment has been cancelled successfully.",
-});
+    setCancelling(true);
+    setAppointmentsError("");
 
     try {
       const lockDates =
@@ -552,24 +557,59 @@ toast.success("Appointment cancelled", {
 
       setCancelAppointmentId(null);
       setExpandedAppointment(null);
+
+      toast.success("Appointment cancelled", {
+        description: "Your appointment has been cancelled successfully.",
+      });
     } catch (error) {
       console.error("Cancel appointment error:", error);
+
       const message =
-  error instanceof Error
-    ? error.message
-    : "Failed to cancel appointment.";
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel appointment.";
 
-setAppointmentsError(message);
+      setAppointmentsError(message);
 
-toast.error("Failed to cancel appointment", {
-  description: message,
-});
+      toast.error("Failed to cancel appointment", {
+        description: message,
+      });
     } finally {
       setCancelling(false);
     }
   };
 
   const userName = user?.email ? user.email.split("@")[0] : "Customer";
+
+  const filteredOrders = orders.filter((order) => {
+    if (orderFilter === "all") return true;
+    return order.status.toLowerCase() === orderFilter;
+  });
+
+  const filteredAppointments = appointments.filter((appointment) => {
+    if (appointmentFilter === "all") return true;
+    return appointment.status === appointmentFilter;
+  });
+
+  const orderTotalPages = Math.max(
+  1,
+  Math.ceil(filteredOrders.length / ITEMS_PER_PAGE)
+);
+
+const appointmentTotalPages = Math.max(
+  1,
+  Math.ceil(filteredAppointments.length / ITEMS_PER_PAGE)
+);
+
+const visibleOrders = filteredOrders.slice(
+  (orderPage - 1) * ITEMS_PER_PAGE,
+  orderPage * ITEMS_PER_PAGE
+);
+
+const visibleAppointments = filteredAppointments.slice(
+  (appointmentPage - 1) * ITEMS_PER_PAGE,
+  appointmentPage * ITEMS_PER_PAGE
+);
 
   if (authLoading) {
     return (
@@ -691,19 +731,38 @@ toast.error("Failed to cancel appointment", {
                 </button>
               </div>
 
+              <div className="mb-5">
+                <select
+                  value={orderFilter}
+                  onChange={(e) => {
+                    setOrderFilter(e.target.value);
+                    setExpandedOrder(null);
+                    setOrderPage(1);
+                  }}
+                  className="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 sm:max-w-xs"
+                >
+                  <option value="all">All Orders</option>
+                  <option value="pending">Pending</option>
+                  <option value="processing">Processing</option>
+                  <option value="shipped">Shipped</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
               <div className="space-y-5">
                 {loadingOrders ? (
                   <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
                     Loading your orders...
                   </div>
-                ) : orders.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                   <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center">
                     <Package className="mx-auto mb-3 h-10 w-10 text-stone-300" />
                     <h3 className="font-semibold text-stone-900">
-                      No orders yet
+                      No orders found
                     </h3>
                     <p className="mt-1 text-sm text-stone-500">
-                      Your furniture orders will appear here after checkout.
+                      Your orders will appear here after checkout.
                     </p>
                     <button
                       type="button"
@@ -714,258 +773,288 @@ toast.error("Failed to cancel appointment", {
                     </button>
                   </div>
                 ) : (
-                  orders.slice(0, 5).map((order) => {
-                    const currentStep = getStatusStep(order.status);
-                    const isExpanded = expandedOrder === order.id;
+                  <>
+                    {visibleOrders.map((order) => {
+                      const currentStep = getStatusStep(order.status);
+                      const isExpanded = expandedOrder === order.id;
 
-                    return (
-                      <div
-                        key={order.id}
-                        className="overflow-hidden rounded-2xl border border-stone-100 bg-white shadow-sm"
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedOrder(isExpanded ? null : order.id)
-                          }
-                          className="w-full bg-stone-50 p-4 text-left transition-colors hover:bg-stone-100 sm:p-5"
-                          aria-expanded={isExpanded}
-                          aria-controls={`order-details-${order.id}`}
+                      return (
+                        <div
+                          key={order.id}
+                          className="overflow-hidden rounded-2xl border border-stone-100 bg-white shadow-sm"
                         >
-                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex min-w-0 items-center gap-4">
-                              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                                <PackageIcon className="w-6 h-6 text-emerald-600" />
-                              </div>
-
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="font-bold text-stone-800">
-                                    Order #{order.id.slice(0, 8)}
-                                  </h3>
-
-                                  <span
-                                    className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusClass(
-                                      order.status
-                                    )}`}
-                                  >
-                                    {order.status || "Pending"}
-                                  </span>
-
-                                  {isExpanded ? (
-                                    <ChevronUp className="w-5 h-5 text-stone-400" />
-                                  ) : (
-                                    <ChevronDown className="w-5 h-5 text-stone-400" />
-                                  )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedOrder(isExpanded ? null : order.id)
+                            }
+                            className="w-full bg-stone-50 p-4 text-left transition-colors hover:bg-stone-100 sm:p-5"
+                            aria-expanded={isExpanded}
+                            aria-controls={`order-details-${order.id}`}
+                          >
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex min-w-0 items-center gap-4">
+                                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                  <PackageIcon className="w-6 h-6 text-emerald-600" />
                                 </div>
 
-                                <p className="text-sm text-stone-500 mt-1">
-                                  {order.items.length} item
-                                  {order.items.length > 1 ? "s" : ""}
-                                </p>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="font-bold text-stone-800">
+                                      Order #{order.id.slice(0, 8)}
+                                    </h3>
+
+                                    <span
+                                      className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusClass(
+                                        order.status
+                                      )}`}
+                                    >
+                                      {order.status || "Pending"}
+                                    </span>
+
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-5 h-5 text-stone-400" />
+                                    ) : (
+                                      <ChevronDown className="w-5 h-5 text-stone-400" />
+                                    )}
+                                  </div>
+
+                                  <p className="text-sm text-stone-500 mt-1">
+                                    {order.items.length} item
+                                    {order.items.length > 1 ? "s" : ""}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-end justify-between sm:mt-0 sm:justify-end">
+                                <span className="text-lg font-bold text-emerald-700">
+                                  {formatMoney(getProductSubtotal(order))}
+                                </span>
                               </div>
                             </div>
+                          </button>
 
-                            <div className="text-right sm:mt-0">
-                              <p className="text-xs text-stone-500">
-                                Product Subtotal
-                              </p>
-                              <span className="text-lg font-bold text-emerald-700">
-                                {formatMoney(getProductSubtotal(order))}
-                              </span>
-                            </div>
-                          </div>
-                        </button>
+                          {isExpanded && (
+                            <div
+                              id={`order-details-${order.id}`}
+                              className="border-t border-stone-100 p-4 bg-stone-50"
+                            >
+                              <div className="mb-6">
+                                <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+                                  <Truck className="w-4 h-4" />
+                                  Order Tracking
+                                </h4>
 
-                        {isExpanded && (
-                          <div
-                            id={`order-details-${order.id}`}
-                            className="border-t border-stone-100 p-4 bg-stone-50"
-                          >
-                            <div className="mb-6">
-                              <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
-                                <Truck className="w-4 h-4" />
-                                Order Tracking
-                              </h4>
+                                <div className="overflow-x-auto pb-2">
+                                  <div className="flex items-center justify-between min-w-[400px]">
+                                    {ORDER_STEPS.map((step, index) => {
+                                      const StepIcon = step.icon;
+                                      const isCompleted = index <= currentStep;
+                                      const isCurrent = index === currentStep;
+                                      const ITEMS_PER_PAGE = 5;  
+                                      return (
+                                        <div
+                                          key={step.key}
+                                          className="flex flex-col items-center flex-1 relative"
+                                        >
+                                          {index > 0 && (
+                                            <div
+                                              className={`absolute top-4 sm:top-5 -left-1/2 w-full h-0.5 ${
+                                                index <= currentStep
+                                                  ? "bg-emerald-500"
+                                                  : "bg-stone-200"
+                                              }`}
+                                            />
+                                          )}
 
-                              <div className="overflow-x-auto pb-2">
-                                <div className="flex items-center justify-between min-w-[400px]">
-                                  {ORDER_STEPS.map((step, index) => {
-                                    const StepIcon = step.icon;
-                                    const isCompleted = index <= currentStep;
-                                    const isCurrent = index === currentStep;
-
-                                    return (
-                                      <div
-                                        key={step.key}
-                                        className="flex flex-col items-center flex-1 relative"
-                                      >
-                                        {index > 0 && (
                                           <div
-                                            className={`absolute top-4 sm:top-5 -left-1/2 w-full h-0.5 ${
-                                              index <= currentStep
-                                                ? "bg-emerald-500"
-                                                : "bg-stone-200"
+                                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center z-10 ${
+                                              isCompleted
+                                                ? "bg-emerald-500 text-white"
+                                                : "bg-stone-200 text-stone-400"
                                             }`}
+                                          >
+                                            <StepIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                          </div>
+
+                                          <span
+                                            className={`text-xs mt-2 text-center ${
+                                              isCurrent
+                                                ? "font-bold text-emerald-600"
+                                                : isCompleted
+                                                ? "text-stone-600"
+                                                : "text-stone-400"
+                                            }`}
+                                          >
+                                            {step.label}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-xl">
+                                  <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
+                                    <MapPin className="w-4 h-4" />
+                                    Shipping Address
+                                  </h4>
+                                  <p className="text-sm text-stone-600">
+                                    {order.shippingInfo.fullName || "No name"}
+                                    <br />
+                                    {order.shippingInfo.address ||
+                                      "No address"}
+                                    <br />
+                                    {order.shippingInfo.city}
+                                    {order.shippingInfo.city &&
+                                    order.shippingInfo.postalCode
+                                      ? ", "
+                                      : ""}
+                                    {order.shippingInfo.postalCode}
+                                  </p>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-xl">
+                                  <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
+                                    <CreditCard className="w-4 h-4" />
+                                    Payment Method
+                                  </h4>
+                                  <p className="text-sm text-stone-600">
+                                    {order.paymentMethod || "Cash on Delivery"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 bg-white p-4 rounded-xl">
+                                <h4 className="font-bold text-stone-800 mb-3">
+                                  Order Items
+                                </h4>
+
+                                <div className="space-y-3">
+                                  {order.items.map((item, idx) => (
+                                    <div
+                                      key={`${item.id}-${idx}`}
+                                      className="flex items-center justify-between gap-4"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {item.image && (
+                                          <img
+                                            src={item.image}
+                                            alt={item.name}
+                                            className="w-12 h-12 rounded-lg object-cover"
                                           />
                                         )}
 
-                                        <div
-                                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center z-10 ${
-                                            isCompleted
-                                              ? "bg-emerald-500 text-white"
-                                              : "bg-stone-200 text-stone-400"
-                                          }`}
-                                        >
-                                          <StepIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        <div>
+                                          <p className="font-medium text-stone-800">
+                                            {item.name}
+                                          </p>
+                                          <p className="text-sm text-stone-500">
+                                            Qty: {item.quantity}
+                                          </p>
                                         </div>
+                                      </div>
 
-                                        <span
-                                          className={`text-xs mt-2 text-center ${
-                                            isCurrent
-                                              ? "font-bold text-emerald-600"
-                                              : isCompleted
-                                              ? "text-stone-600"
-                                              : "text-stone-400"
-                                          }`}
-                                        >
-                                          {step.label}
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-medium">
+                                          {formatMoney(
+                                            item.price * item.quantity
+                                          )}
                                         </span>
+
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            addItem({
+                                              id: item.id,
+                                              name: item.name,
+                                              price: item.price,
+                                              image: item.image,
+                                              quantity: 1,
+                                            });
+                                          }}
+                                          className="text-sm font-medium text-emerald-700 bg-emerald-100 px-3 py-1 rounded hover:bg-emerald-200 transition-colors"
+                                        >
+                                          Add
+                                        </button>
                                       </div>
-                                    );
-                                  })}
+                                    </div>
+                                  ))}
                                 </div>
-                              </div>
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="bg-white p-4 rounded-xl">
-                                <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
-                                  <MapPin className="w-4 h-4" />
-                                  Shipping Address
-                                </h4>
-                                <p className="text-sm text-stone-600">
-                                  {order.shippingInfo.fullName || "No name"}
-                                  <br />
-                                  {order.shippingInfo.address || "No address"}
-                                  <br />
-                                  {order.shippingInfo.city}
-                                  {order.shippingInfo.city &&
-                                  order.shippingInfo.postalCode
-                                    ? ", "
-                                    : ""}
-                                  {order.shippingInfo.postalCode}
-                                </p>
-                              </div>
-
-                              <div className="bg-white p-4 rounded-xl">
-                                <h4 className="font-bold text-stone-800 mb-2 flex items-center gap-2">
-                                  <CreditCard className="w-4 h-4" />
-                                  Payment Method
-                                </h4>
-                                <p className="text-sm text-stone-600">
-                                  {order.paymentMethod || "Cash on Delivery"}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 bg-white p-4 rounded-xl">
-                              <h4 className="font-bold text-stone-800 mb-3">
-                                Order Items
-                              </h4>
-
-                              <div className="space-y-3">
-                                {order.items.map((item, idx) => (
-                                  <div
-                                    key={`${item.id}-${idx}`}
-                                    className="flex items-center justify-between gap-4"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      {item.image && (
-                                        <img
-                                          src={item.image}
-                                          alt={item.name}
-                                          className="w-12 h-12 rounded-lg object-cover"
-                                        />
-                                      )}
-
-                                      <div>
-                                        <p className="font-medium text-stone-800">
-                                          {item.name}
-                                        </p>
-                                        <p className="text-sm text-stone-500">
-                                          Qty: {item.quantity}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-3">
-                                      <span className="font-medium">
-                                        {formatMoney(
-                                          item.price * item.quantity
-                                        )}
-                                      </span>
-
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          addItem({
-                                            id: item.id,
-                                            name: item.name,
-                                            price: item.price,
-                                            image: item.image,
-                                            quantity: 1,
-                                          });
-                                        }}
-                                        className="text-sm font-medium text-emerald-700 bg-emerald-100 px-3 py-1 rounded hover:bg-emerald-200 transition-colors"
-                                      >
-                                        Add
-                                      </button>
-                                    </div>
+                                <div className="mt-4 border-t border-stone-100 pt-3">
+                                  <div className="flex justify-between gap-4">
+                                    <span className="font-bold text-stone-800">
+                                      Product Subtotal
+                                    </span>
+                                    <span className="font-bold text-lg text-emerald-600">
+                                      {formatMoney(getProductSubtotal(order))}
+                                    </span>
                                   </div>
-                                ))}
-                              </div>
 
-                              <div className="mt-4 border-t border-stone-100 pt-3">
-                                <div className="flex justify-between gap-4">
-                                  <span className="font-bold text-stone-800">
-                                    Product Subtotal
-                                  </span>
-                                  <span className="font-bold text-lg text-emerald-600">
-                                    {formatMoney(getProductSubtotal(order))}
-                                  </span>
+                                  <div className="mt-2 flex justify-between gap-4 text-sm">
+                                    <span className="text-stone-500">
+                                      Delivery Fee
+                                    </span>
+                                    <span className="font-medium text-stone-800">
+                                      {getDeliveryFeeLabel(order)}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-2 flex justify-between gap-4 text-sm">
+                                    <span className="text-stone-500">
+                                      Final Total
+                                    </span>
+                                    <span className="font-medium text-stone-800">
+                                      {getFinalTotalLabel(order)}
+                                    </span>
+                                  </div>
+
+                                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                                    Delivery fee is not included in the product
+                                    subtotal. The admin will confirm the
+                                    delivery fee based on your location.
+                                  </p>
                                 </div>
-
-                                <div className="mt-2 flex justify-between gap-4 text-sm">
-                                  <span className="text-stone-500">
-                                    Delivery Fee
-                                  </span>
-                                  <span className="font-medium text-stone-800">
-                                    {getDeliveryFeeLabel(order)}
-                                  </span>
-                                </div>
-
-                                <div className="mt-2 flex justify-between gap-4 text-sm">
-                                  <span className="text-stone-500">
-                                    Final Total
-                                  </span>
-                                  <span className="font-medium text-stone-800">
-                                    {getFinalTotalLabel(order)}
-                                  </span>
-                                </div>
-
-                                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                                  Delivery fee is not included in the product
-                                  subtotal. The admin will confirm the delivery
-                                  fee based on your location.
-                                </p>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {filteredOrders.length > ITEMS_PER_PAGE && (
+  <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm text-stone-500">
+      Page {orderPage} of {orderTotalPages}
+    </p>
+
+    <div className="flex gap-2">
+      <button
+        type="button"
+        disabled={orderPage === 1}
+        onClick={() => setOrderPage((prev) => Math.max(1, prev - 1))}
+        className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Previous
+      </button>
+
+      <button
+        type="button"
+        disabled={orderPage === orderTotalPages}
+        onClick={() =>
+          setOrderPage((prev) => Math.min(orderTotalPages, prev + 1))
+        }
+        className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
+                  </>
                 )}
               </div>
             </div>
@@ -991,18 +1080,37 @@ toast.error("Failed to cancel appointment", {
                 </button>
               </div>
 
+              <div className="mb-5">
+                <select
+                  value={appointmentFilter}
+                  onChange={(e) => {
+                    setAppointmentFilter(e.target.value);
+                    setExpandedAppointment(null);
+                    setAppointmentPage(1);
+                  }}
+                  className="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 sm:max-w-xs"
+                >
+                  <option value="all">All Appointments</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
               {loadingAppointments ? (
                 <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
                   Loading your appointments...
                 </div>
-              ) : appointments.length === 0 ? (
+              ) : filteredAppointments.length === 0 ? (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-center">
                   <Leaf className="w-12 h-12 text-amber-600 mx-auto mb-2" />
                   <p className="text-stone-700 font-medium mb-2">
-                    No appointments scheduled
+                    No appointments found
                   </p>
                   <p className="text-stone-600 text-sm mb-4">
-                    Book your landscaping consultation to get started
+                    Book your landscaping consultation to get started.
                   </p>
                   <button
                     onClick={() => navigate("/landscaping/booking")}
@@ -1013,7 +1121,7 @@ toast.error("Failed to cancel appointment", {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {appointments.map((apt) => {
+                  {visibleAppointments.map((apt) => {
                     const appointmentId = apt.id || "";
                     const isExpanded = expandedAppointment === appointmentId;
 
@@ -1138,8 +1246,9 @@ toast.error("Failed to cancel appointment", {
                                     {apt.customerPhone || "No phone provided"}
                                   </div>
                                   <div>
-  {apt.customerAddress || "No address provided"}
-</div>
+                                    {apt.customerAddress ||
+                                      "No address provided"}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1173,6 +1282,40 @@ toast.error("Failed to cancel appointment", {
                       </div>
                     );
                   })}
+
+                  {filteredAppointments.length > ITEMS_PER_PAGE && (
+  <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm text-stone-500">
+      Page {appointmentPage} of {appointmentTotalPages}
+    </p>
+
+    <div className="flex gap-2">
+      <button
+        type="button"
+        disabled={appointmentPage === 1}
+        onClick={() =>
+          setAppointmentPage((prev) => Math.max(1, prev - 1))
+        }
+        className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Previous
+      </button>
+
+      <button
+        type="button"
+        disabled={appointmentPage === appointmentTotalPages}
+        onClick={() =>
+          setAppointmentPage((prev) =>
+            Math.min(appointmentTotalPages, prev + 1)
+          )
+        }
+        className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
                 </div>
               )}
             </div>
