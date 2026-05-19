@@ -5,6 +5,5 @@ export type Product = {
   price: number;
   imageUrl: string;
   category?: string;
-  customizable?: boolean;
-  status: 'available' | 'unavailable' | 'out-of-stock';
+  status: 'available' | 'unavailable';
 };

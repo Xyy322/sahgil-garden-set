@@ -27,6 +27,7 @@ interface InquiryData {
   inquiryType: string;
   message: string;
   status: "pending" | "responded" | "closed";
+  adminRead?: boolean;
   createdAt?: Timestamp | string | null;
   updatedAt?: Timestamp | string | null;
 }
@@ -63,18 +64,18 @@ function getTimestampMillis(value: unknown): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function statusLabel(status: unknown) {
+function statusLabel(status: unknown, adminRead?: boolean) {
   if (status === "closed") return "Closed";
-  if (status === "responded") return "Read";
+  if (status === "responded" || adminRead === true) return "Read by Admin";
   return "Submitted";
 }
 
-function statusBadge(status: unknown) {
+function statusBadge(status: unknown, adminRead?: boolean) {
   if (status === "closed") {
     return "bg-stone-100 text-stone-700 border-stone-200";
   }
 
-  if (status === "responded") {
+  if (status === "responded" || adminRead === true) {
     return "bg-blue-50 text-blue-700 border-blue-200";
   }
 
@@ -101,6 +102,7 @@ function normalizeInquiry(id: string, data: any): InquiryData {
         : "General Inquiry",
     message: typeof data.message === "string" ? data.message : "",
     status,
+    adminRead: data.adminRead === true,
     createdAt: data.createdAt ?? null,
     updatedAt: data.updatedAt ?? null,
   };
@@ -225,10 +227,11 @@ export function CustomerInquiries() {
 
                     <span
                       className={`inline-block rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadge(
-                        inquiry.status
+                        inquiry.status,
+                        inquiry.adminRead
                       )}`}
                     >
-                      {statusLabel(inquiry.status)}
+                      {statusLabel(inquiry.status, inquiry.adminRead)}
                     </span>
                   </div>
 
@@ -282,10 +285,11 @@ export function CustomerInquiries() {
                 <p className="text-sm text-stone-500">Status</p>
                 <span
                   className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
-                    selectedLiveInquiry.status
+                    selectedLiveInquiry.status,
+                    selectedLiveInquiry.adminRead
                   )}`}
                 >
-                  {statusLabel(selectedLiveInquiry.status)}
+                  {statusLabel(selectedLiveInquiry.status, selectedLiveInquiry.adminRead)}
                 </span>
               </div>
 

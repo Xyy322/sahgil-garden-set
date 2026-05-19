@@ -21,6 +21,54 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    function isValidOrderStatus(status) {
+      return status in [
+        "Pending", "pending",
+        "Processing", "processing",
+        "Shipped", "shipped",
+        "Delivered", "delivered",
+        "Cancelled", "cancelled", "Canceled", "canceled"
+      ];
+    }
+
+    function isValidNotificationType(type) {
+      return type in ["order", "appointment", "inquiry"];
+    }
+
+    function isValidRelatedCollection(collectionName) {
+      return collectionName in ["orders", "appointments", "inquiries"];
+    }
+
+    function isValidNotificationPayload() {
+      return request.resource.data.keys().hasOnly([
+          "userId",
+          "title",
+          "message",
+          "type",
+          "statusRefId",
+          "relatedId",
+          "relatedCollection",
+          "read",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.userId is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 500
+        && isValidNotificationType(request.resource.data.type)
+        && request.resource.data.statusRefId is string
+        && request.resource.data.relatedId is string
+        && request.resource.data.relatedCollection is string
+        && isValidRelatedCollection(request.resource.data.relatedCollection)
+        && request.resource.data.read == false
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
 
@@ -41,7 +89,49 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow create: if isAuthenticated()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.keys().hasOnly([
+          "userId",
+          "orderNumber",
+          "customerName",
+          "customerEmail",
+          "customerPhone",
+          "address",
+          "items",
+          "shippingInfo",
+          "productSubtotal",
+          "deliveryFee",
+          "finalTotal",
+          "total",
+          "paymentMethod",
+          "deliveryNote",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.orderNumber is string
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() > 1
+        && request.resource.data.customerEmail is string
+        && request.resource.data.customerPhone is string
+        && request.resource.data.customerPhone.size() > 0
+        && request.resource.data.address is string
+        && request.resource.data.address.size() > 5
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 50
+        && request.resource.data.shippingInfo is map
+        && request.resource.data.productSubtotal is number
+        && request.resource.data.productSubtotal > 0
+        && request.resource.data.total is number
+        && request.resource.data.total == request.resource.data.productSubtotal
+        && request.resource.data.deliveryFee == null
+        && request.resource.data.finalTotal == null
+        && request.resource.data.paymentMethod is string
+        && request.resource.data.deliveryNote is string
+        && isValidOrderStatus(request.resource.data.status)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
 
       allow read: if isAuthenticated()
         && (
@@ -55,30 +145,30 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-  allow create: if isAuthenticated()
-    && request.resource.data.userId == request.auth.uid
-    && request.resource.data.status == "pending"
-    && request.resource.data.date is string
-    && request.resource.data.time is string;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.date is string
+        && request.resource.data.time is string;
 
-  allow read: if isAuthenticated()
-    && (
-      isAdmin() ||
-      resource.data.userId == request.auth.uid ||
-      resource.data.status == "approved"
-    );
+      allow read: if isAuthenticated()
+        && (
+          isAdmin() ||
+          resource.data.userId == request.auth.uid ||
+          resource.data.status == "approved"
+        );
 
-  allow update: if isAdmin()
-    || (
-      resource.data.userId == request.auth.uid
-      && request.resource.data.userId == resource.data.userId
-      && request.resource.data.status == "cancelled"
-      && request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(["status", "updatedAt"])
-    );
+      allow update: if isAdmin()
+        || (
+          resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.status == "cancelled"
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "updatedAt"])
+        );
 
-  allow delete: if false;
-}
+      allow delete: if false;
+    }
 
     match /appointmentLocks/{lockId} {
       allow read: if isAuthenticated();
@@ -102,55 +192,56 @@ service cloud.firestore {
     }
 
     match /inquiries/{inquiryId} {
-  allow create: if (
-    isAuthenticated()
-    && request.resource.data.userId == request.auth.uid
-    && request.resource.data.customerType == "registered"
-    && request.resource.data.adminRead == false
-    && request.resource.data.adminReadAt == null
-    && request.resource.data.fullName is string
-    && request.resource.data.email is string
-    && request.resource.data.phone is string
-    && request.resource.data.inquiryType is string
-    && request.resource.data.message is string
-    && request.resource.data.fullName.size() > 1
-    && request.resource.data.email.size() > 3
-    && request.resource.data.phone.size() > 0
-    && request.resource.data.message.size() > 0
-    && request.resource.data.message.size() <= 2000
-  ) || (
-    !isAuthenticated()
-    && request.resource.data.userId == ""
-    && request.resource.data.customerType == "guest"
-    && request.resource.data.adminRead == false
-    && request.resource.data.adminReadAt == null
-    && request.resource.data.fullName is string
-    && request.resource.data.email is string
-    && request.resource.data.phone is string
-    && request.resource.data.inquiryType is string
-    && request.resource.data.message is string
-    && request.resource.data.fullName.size() > 1
-    && request.resource.data.email.size() > 3
-    && request.resource.data.phone.size() > 0
-    && request.resource.data.message.size() > 0
-    && request.resource.data.message.size() <= 2000
-  );
+      allow create: if (
+        isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.customerType == "registered"
+        && request.resource.data.adminRead == false
+        && request.resource.data.adminReadAt == null
+        && request.resource.data.fullName is string
+        && request.resource.data.email is string
+        && request.resource.data.phone is string
+        && request.resource.data.inquiryType is string
+        && request.resource.data.message is string
+        && request.resource.data.fullName.size() > 1
+        && request.resource.data.email.size() > 3
+        && request.resource.data.phone.size() > 0
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+      ) || (
+        !isAuthenticated()
+        && request.resource.data.userId == ""
+        && request.resource.data.customerType == "guest"
+        && request.resource.data.adminRead == false
+        && request.resource.data.adminReadAt == null
+        && request.resource.data.fullName is string
+        && request.resource.data.email is string
+        && request.resource.data.phone is string
+        && request.resource.data.inquiryType is string
+        && request.resource.data.message is string
+        && request.resource.data.fullName.size() > 1
+        && request.resource.data.email.size() > 3
+        && request.resource.data.phone.size() > 0
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+      );
 
-  allow read: if isAuthenticated()
-    && (
-      isAdmin() ||
-      resource.data.userId == request.auth.uid
-    );
+      allow read: if isAuthenticated()
+        && (
+          isAdmin() ||
+          resource.data.userId == request.auth.uid
+        );
 
-  allow update: if isAdmin()
-    && request.resource.data.diff(resource.data).affectedKeys()
-      .hasOnly(["adminRead", "adminReadAt", "updatedAt"]);
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["adminRead", "adminReadAt", "updatedAt"]);
 
-  allow delete: if false;
-}
+      allow delete: if false;
+    }
 
     match /notifications/{notificationId} {
       allow create: if isAuthenticated()
+        && isValidNotificationPayload()
         && (
           isAdmin() ||
           request.resource.data.userId == request.auth.uid ||
@@ -160,16 +251,16 @@ service cloud.firestore {
       allow read: if isAuthenticated()
         && (
           isAdmin() ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == "admin"
+          resource.data.userId == request.auth.uid
         );
 
       allow update: if isAuthenticated()
         && (
           isAdmin() ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == "admin"
-        );
+          resource.data.userId == request.auth.uid
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["read", "updatedAt"]);
 
       allow delete: if false;
     }

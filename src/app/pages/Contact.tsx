@@ -247,6 +247,7 @@ export function Contact() {
                     setFormData({ ...formData, phone: e.target.value })
                   }
                   className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
                 />
               </div>
 
