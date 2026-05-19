@@ -466,7 +466,7 @@ export function Checkout() {
               </div>
 
               <div>
-                <Label htmlFor="address">Street Address</Label>
+                <Label htmlFor="address">Complete Address</Label>
                 <Input
                   id="address"
                   value={form.address}
@@ -479,7 +479,7 @@ export function Checkout() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city">Province</Label>
                   <Input
                     id="city"
                     value={form.city}

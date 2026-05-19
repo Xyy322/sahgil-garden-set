@@ -417,7 +417,12 @@ export function Root() {
           </SheetHeader>
 
           <div className="mt-6">
-            <Cart />
+            <Cart
+  onCheckout={() => {
+    setIsCartOpen(false);
+    navigate("/checkout");
+  }}
+/>
           </div>
         </SheetContent>
       </Sheet>

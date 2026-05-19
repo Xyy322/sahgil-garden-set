@@ -4,7 +4,11 @@
 import { useNavigate } from "react-router-dom";
 import { useCart } from "./CartContext";
 
-export function Cart() {
+type CartProps = {
+  onCheckout?: () => void;
+};
+
+export function Cart({ onCheckout }: CartProps) {
   // Access cart items and manipulation functions from context.
   const { items, removeItem, clearCart } = useCart();
   const navigate = useNavigate();
@@ -61,7 +65,14 @@ export function Cart() {
         </span>
       </div>
       <button
-        onClick={() => navigate("/checkout")}
+        onClick={() => {
+  if (onCheckout) {
+    onCheckout();
+    return;
+  }
+
+  navigate("/checkout");
+}}
         className="w-full mt-2 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
       >
         Proceed to Checkout
