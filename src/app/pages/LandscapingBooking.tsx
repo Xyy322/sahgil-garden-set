@@ -54,6 +54,12 @@ function isValidDateKey(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function hasLockConflict(dateKey: string, blockedDates: string[]) {
+  const requestedLockDates = getBlockedDates(parseDateKey(dateKey));
+
+  return requestedLockDates.some((date) => blockedDates.includes(date));
+}
+
 function normalizeAppointment(id: string, data: any): Appointment {
   return {
     id,
@@ -231,19 +237,23 @@ export function LandscapingBooking() {
     }
 
     const dateKey = toDateKey(selectedDate);
+const lockDates = getBlockedDates(parseDateKey(dateKey));
+const conflictingDate = lockDates.find((date) =>
+  blockedDates.includes(date)
+);
 
-    if (blockedDates.includes(dateKey)) {
-      setError("Selected date is no longer available. Please choose another date.");
-      return;
-    }
+if (conflictingDate) {
+  setError(
+    `Selected schedule is unavailable because ${conflictingDate} is already reserved. Please choose another date.`
+  );
+  return;
+}
 
     try {
       setSubmitting(true);
 
       const appointmentRef = doc(collection(db, "appointments"));
       const batch = writeBatch(db);
-
-      const lockDates = getBlockedDates(parseDateKey(dateKey));
 
       batch.set(appointmentRef, {
         userId: user.uid,
@@ -422,13 +432,13 @@ export function LandscapingBooking() {
                       setSelectedTime("");
                     }}
                     disabled={(date) => {
-                      const now = new Date();
-                      now.setHours(0, 0, 0, 0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
-                      return (
-                        date < now || blockedDates.includes(toDateKey(date))
-                      );
-                    }}
+  const dateKey = toDateKey(date);
+
+  return date < now || hasLockConflict(dateKey, blockedDates);
+}}
                     className="rounded-lg border border-stone-200"
                   />
                 </div>
