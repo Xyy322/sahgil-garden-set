@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
 import {
-  Appointment,
+  type Appointment,
   formatTime,
   formatDisplayDate,
   getBlockedDates,
@@ -81,7 +81,7 @@ function isValidStatus(status: unknown): status is AppointmentStatus {
 
 function normalizeAppointment(
   id: string,
-  data: Record<string, any>
+  data: Record<string, unknown>
 ): AdminAppointment {
   return {
     id,
@@ -269,7 +269,6 @@ export function AppointmentsManagement() {
       setError("");
 
       const lockDates = getReservedDates(appointment);
-
       const batch = writeBatch(db);
 
       batch.update(doc(db, "appointments", id), {
@@ -305,19 +304,65 @@ export function AppointmentsManagement() {
       await batch.commit();
 
       if (appointment.userId) {
+        let notificationTitle = "Appointment Request Updated";
+        let notificationMessage = `Your appointment request for ${
+          appointment.date || "the selected date"
+        } at ${
+          appointment.time ? formatTime(appointment.time) : "the selected time"
+        } has been updated to ${formatStatus(newStatus)}.`;
+
+        if (newStatus === "approved") {
+          notificationTitle = "Appointment Request Approved";
+          notificationMessage = `Your appointment request for ${
+            appointment.date || "the selected date"
+          } at ${
+            appointment.time ? formatTime(appointment.time) : "the selected time"
+          } has been approved after confirmation.`;
+        }
+
+        if (newStatus === "rejected") {
+          notificationTitle = "Appointment Request Rejected";
+          notificationMessage = `Your appointment request for ${
+            appointment.date || "the selected date"
+          } at ${
+            appointment.time ? formatTime(appointment.time) : "the selected time"
+          } was not confirmed and has been rejected.`;
+        }
+
+        if (newStatus === "completed") {
+          notificationTitle = "Appointment Completed";
+          notificationMessage = `Your landscaping consultation for ${
+            appointment.date || "the selected date"
+          } has been marked as completed.`;
+        }
+
         await createNotification({
           userId: appointment.userId,
-          title: "Appointment updated",
-          message: `Your appointment (${appointment.date || "No date"} ${
-            appointment.time || "No time"
-          }) is now ${newStatus}.`,
+          title: notificationTitle,
+          message: notificationMessage,
           type: "appointment",
           statusRefId: id,
         });
       }
 
-      toast.success("Appointment updated", {
-        description: `Appointment is now ${newStatus}.`,
+      const successLabel =
+        newStatus === "approved"
+          ? "Appointment request approved"
+          : newStatus === "rejected"
+          ? "Appointment request rejected"
+          : newStatus === "completed"
+          ? "Appointment marked completed"
+          : `Appointment updated to ${formatStatus(newStatus)}`;
+
+      toast.success(successLabel, {
+        description:
+          newStatus === "approved"
+            ? "The appointment remains reserved for the customer."
+            : newStatus === "rejected"
+            ? "The reserved date has been released."
+            : newStatus === "completed"
+            ? "The appointment record has been completed."
+            : `Status is now ${formatStatus(newStatus)}.`,
       });
     } catch (err) {
       console.error("Appointment status update error:", err);
@@ -414,8 +459,8 @@ export function AppointmentsManagement() {
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage customer appointment requests, approval status, address details,
-          and 3-day schedule reservations.
+          Manage customer appointment requests, confirmation status, address
+          details, and selected-date reservations.
         </p>
       </div>
 
@@ -552,7 +597,7 @@ export function AppointmentsManagement() {
                           disabled={updatingId === appointment.id}
                         >
                           <Check className="mr-1 h-4 w-4" />
-                          Approve
+                          Approve Request
                         </Button>
 
                         <Button
@@ -564,7 +609,7 @@ export function AppointmentsManagement() {
                           variant="secondary"
                         >
                           <X className="mr-1 h-4 w-4" />
-                          Reject
+                          Reject Request
                         </Button>
                       </>
                     )}
@@ -577,7 +622,7 @@ export function AppointmentsManagement() {
                         }
                         disabled={updatingId === appointment.id}
                       >
-                        Mark Complete
+                        Mark Completed
                       </Button>
                     )}
 
@@ -699,7 +744,7 @@ export function AppointmentsManagement() {
 
                 <div className="rounded-2xl border border-border bg-background p-4">
                   <p className="mb-2 text-sm font-semibold text-foreground">
-                    Reserved Dates
+                    Reserved Date
                   </p>
 
                   <div className="flex flex-wrap gap-2">
@@ -714,7 +759,7 @@ export function AppointmentsManagement() {
                       ))
                     ) : (
                       <span className="text-sm text-muted-foreground">
-                        No reserved dates recorded.
+                        No reserved date recorded.
                       </span>
                     )}
                   </div>
@@ -733,7 +778,7 @@ export function AppointmentsManagement() {
                         }
                         disabled={updatingId === selectedLiveAppointment.id}
                       >
-                        Approve
+                        Approve Request
                       </Button>
 
                       <Button
@@ -747,7 +792,7 @@ export function AppointmentsManagement() {
                         }
                         disabled={updatingId === selectedLiveAppointment.id}
                       >
-                        Reject
+                        Reject Request
                       </Button>
                     </>
                   )}
@@ -763,7 +808,7 @@ export function AppointmentsManagement() {
                       }
                       disabled={updatingId === selectedLiveAppointment.id}
                     >
-                      Mark Complete
+                      Mark Completed
                     </Button>
                   )}
                 </div>
