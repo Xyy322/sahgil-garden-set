@@ -134,9 +134,9 @@ export function Checkout() {
     setError("");
 
     try {
-      const orderTotal = total;
+      const productSubtotal = total;
 
-      const orderData = {
+const orderData = {
         userId: user.uid,
         orderNumber: `SGS-${Date.now()}`,
 
@@ -161,9 +161,16 @@ export function Checkout() {
           postalCode: cleanPostalCode,
         },
 
-        total: orderTotal,
-        paymentMethod: "cash",
-status: "pending",
+        productSubtotal,
+deliveryFee: null,
+finalTotal: null,
+
+// Legacy field kept for existing pages. This means product subtotal only.
+total: productSubtotal,
+
+paymentMethod: "Cash on Delivery",
+deliveryNote: "Delivery fee is not included and will be confirmed by the admin based on customer location.",
+status: "Pending",
 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -191,7 +198,7 @@ status: "pending",
         id: orderRef.id,
         fullName: cleanFullName,
         city: cleanCity,
-        total: orderTotal,
+        total: productSubtotal,
       });
 
       clearCart();
@@ -275,10 +282,15 @@ status: "pending",
               </div>
 
               <div className="mt-2 flex justify-between border-t border-stone-200 pt-2 text-sm">
-                <span className="font-semibold text-stone-800">Total</span>
+                <span className="font-semibold text-stone-800">Product Subtotal</span>
+                
                 <span className="font-bold text-emerald-600">
                   {formatMoney(placedOrder.total)}
                 </span>
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+  Delivery fee is not included in the product subtotal. The admin will confirm
+  the delivery fee based on your location.
+</p>
               </div>
             </div>
           </div>
@@ -519,11 +531,11 @@ status: "pending",
             <div className="mt-5 border-t border-stone-200 pt-5">
               <div className="mb-3 flex items-center gap-2 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">
                 <Truck className="h-4 w-4 shrink-0" />
-                Delivery details will be confirmed by the shop.
+                Delivery fee is not included and will be confirmed by the shop based on your location.
               </div>
 
               <div className="flex justify-between text-base font-bold text-stone-900">
-                <span>Total</span>
+                <span>Product Subtotal</span>
                 <span>{formatMoney(total)}</span>
               </div>
             </div>

@@ -59,7 +59,14 @@ type Order = {
     city: string;
     postalCode: string;
   };
+  productSubtotal: number;
+  deliveryFee: number | null;
+  finalTotal: number | null;
+
+  // Legacy field. In this system, this means product subtotal only.
   total: number;
+
+  deliveryNote?: string;
   status: string;
   paymentMethod: string;
   items: Array<{
@@ -117,6 +124,52 @@ function normalizeCustomerPaymentMethod(method: unknown): string {
   }
 
   return method;
+}
+
+function formatMoney(value: unknown): string {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return "₱0.00";
+  }
+
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function getProductSubtotal(order: Order): number {
+  return Number(order.productSubtotal ?? order.total) || 0;
+}
+
+function getDeliveryFeeLabel(order: Order): string {
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return formatMoney(order.deliveryFee);
+  }
+
+  return "To be confirmed";
+}
+
+function getFinalTotalLabel(order: Order): string {
+  if (
+    typeof order.finalTotal === "number" &&
+    Number.isFinite(order.finalTotal)
+  ) {
+    return formatMoney(order.finalTotal);
+  }
+
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return formatMoney(getProductSubtotal(order) + order.deliveryFee);
+  }
+
+  return "To be confirmed";
 }
 
 function getTimeMillis(value: any): number {
@@ -179,7 +232,27 @@ function normalizeOrder(id: string, data: any): Order {
           ? shippingInfo.postalCode
           : "",
     },
-    total: Number(data.total) || 0,
+
+    productSubtotal: Number(data.productSubtotal ?? data.total) || 0,
+
+    deliveryFee:
+      typeof data.deliveryFee === "number" && Number.isFinite(data.deliveryFee)
+        ? data.deliveryFee
+        : null,
+
+    finalTotal:
+      typeof data.finalTotal === "number" && Number.isFinite(data.finalTotal)
+        ? data.finalTotal
+        : null,
+
+    // Legacy total means product subtotal only.
+    total: Number(data.productSubtotal ?? data.total) || 0,
+
+    deliveryNote:
+      typeof data.deliveryNote === "string"
+        ? data.deliveryNote
+        : "Delivery fee is not included and will be confirmed by the admin based on your location.",
+
     status: normalizeCustomerOrderStatus(data.status),
     paymentMethod: normalizeCustomerPaymentMethod(data.paymentMethod),
     items: Array.isArray(data.items) ? data.items.map(normalizeOrderItem) : [],
@@ -277,7 +350,8 @@ function getAppointmentStatusClass(status: unknown) {
 }
 
 function formatStatus(status: unknown) {
-  const value = typeof status === "string" && status.trim() ? status : "pending";
+  const value =
+    typeof status === "string" && status.trim() ? status : "pending";
 
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -341,7 +415,9 @@ export function CustomerDashboard() {
         try {
           const fetchedOrders = snapshot.docs
             .map((docSnap) => normalizeOrder(docSnap.id, docSnap.data()))
-            .sort((a, b) => getTimeMillis(b.createdAt) - getTimeMillis(a.createdAt));
+            .sort(
+              (a, b) => getTimeMillis(b.createdAt) - getTimeMillis(a.createdAt)
+            );
 
           setOrders(fetchedOrders);
           setOrdersError("");
@@ -388,9 +464,7 @@ export function CustomerDashboard() {
       (snapshot) => {
         try {
           const fetchedAppointments = snapshot.docs
-            .map((docSnap) =>
-              normalizeAppointment(docSnap.id, docSnap.data())
-            )
+            .map((docSnap) => normalizeAppointment(docSnap.id, docSnap.data()))
             .sort((a, b) => {
               const dateA = typeof a.date === "string" ? a.date : "";
               const dateB = typeof b.date === "string" ? b.date : "";
@@ -501,69 +575,69 @@ export function CustomerDashboard() {
 
   return (
     <div className="bg-[#f9f7f4] min-h-screen py-8 md:py-12 relative z-0">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="mb-8 rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Customer Dashboard
-          </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+                Customer Dashboard
+              </p>
 
-          <h1 className="mt-1 text-2xl font-bold text-stone-900 md:text-4xl">
-            Welcome back, {userName}!
-          </h1>
+              <h1 className="mt-1 text-2xl font-bold text-stone-900 md:text-4xl">
+                Welcome back, {userName}!
+              </h1>
 
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
-            Track your furniture orders, landscaping appointments, inquiries,
-            and account activity in one place.
-          </p>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
+                Track your furniture orders, landscaping appointments,
+                inquiries, and account activity in one place.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate("/services")}
+              className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 md:w-auto"
+            >
+              Browse Products
+            </button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <p className="text-sm text-stone-500">Orders</p>
+              <p className="mt-1 text-2xl font-bold text-stone-900">
+                {orders.length}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <p className="text-sm text-stone-500">Active Appointments</p>
+              <p className="mt-1 text-2xl font-bold text-stone-900">
+                {
+                  appointments.filter(
+                    (appointment) =>
+                      appointment.status === "approved" ||
+                      appointment.status === "pending"
+                  ).length
+                }
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <p className="text-sm text-stone-500">Completed</p>
+              <p className="mt-1 text-2xl font-bold text-stone-900">
+                {
+                  appointments.filter(
+                    (appointment) => appointment.status === "completed"
+                  ).length
+                }
+              </p>
+            </div>
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => navigate("/services")}
-          className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 md:w-auto"
-        >
-          Browse Products
-        </button>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl bg-stone-50 p-4">
-          <p className="text-sm text-stone-500">Orders</p>
-          <p className="mt-1 text-2xl font-bold text-stone-900">
-            {orders.length}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-stone-50 p-4">
-          <p className="text-sm text-stone-500">Active Appointments</p>
-          <p className="mt-1 text-2xl font-bold text-stone-900">
-            {
-              appointments.filter(
-                (appointment) =>
-                  appointment.status === "approved" ||
-                  appointment.status === "pending"
-              ).length
-            }
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-stone-50 p-4">
-          <p className="text-sm text-stone-500">Completed</p>
-          <p className="mt-1 text-2xl font-bold text-stone-900">
-            {
-              appointments.filter(
-                (appointment) => appointment.status === "completed"
-              ).length
-            }
-          </p>
-        </div>
-      </div>
-    </div>
 
         {(ordersError || appointmentsError) && (
-  <div className="mb-6 space-y-3">
+          <div className="mb-6 space-y-3">
             {ordersError && (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-700">
                 {ordersError}
@@ -582,45 +656,47 @@ export function CustomerDashboard() {
           <div className="space-y-6">
             <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-7">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-  <div>
-    <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
-      <Package className="h-5 w-5 text-emerald-600" />
-      Recent Furniture Orders
-    </h2>
-    <p className="mt-1 text-sm text-stone-500">
-      Track your furniture order status and order details.
-    </p>
-  </div>
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
+                    <Package className="h-5 w-5 text-emerald-600" />
+                    Recent Furniture Orders
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Track your furniture order status and order details.
+                  </p>
+                </div>
 
-  <button
-    type="button"
-    onClick={() => navigate("/services")}
-    className="w-full rounded-xl border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 sm:w-auto"
-  >
-    Shop Again
-  </button>
-</div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/services")}
+                  className="w-full rounded-xl border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 sm:w-auto"
+                >
+                  Shop Again
+                </button>
+              </div>
 
               <div className="space-y-5">
                 {loadingOrders ? (
                   <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
-  Loading your orders...
-</div>
+                    Loading your orders...
+                  </div>
                 ) : orders.length === 0 ? (
                   <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center">
-  <Package className="mx-auto mb-3 h-10 w-10 text-stone-300" />
-  <h3 className="font-semibold text-stone-900">No orders yet</h3>
-  <p className="mt-1 text-sm text-stone-500">
-    Your furniture orders will appear here after checkout.
-  </p>
-  <button
-    type="button"
-    onClick={() => navigate("/services")}
-    className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-  >
-    Browse Products
-  </button>
-</div>
+                    <Package className="mx-auto mb-3 h-10 w-10 text-stone-300" />
+                    <h3 className="font-semibold text-stone-900">
+                      No orders yet
+                    </h3>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Your furniture orders will appear here after checkout.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/services")}
+                      className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                    >
+                      Browse Products
+                    </button>
+                  </div>
                 ) : (
                   orders.slice(0, 5).map((order) => {
                     const currentStep = getStatusStep(order.status);
@@ -647,7 +723,7 @@ export function CustomerDashboard() {
                               </div>
 
                               <div className="min-w-0">
-  <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <h3 className="font-bold text-stone-800">
                                     Order #{order.id.slice(0, 8)}
                                   </h3>
@@ -674,12 +750,12 @@ export function CustomerDashboard() {
                               </div>
                             </div>
 
-                            <div className="flex items-end justify-between sm:mt-0 sm:justify-end">
-  <span className="text-lg font-bold text-emerald-700">
-                                ₱
-                                {order.total.toLocaleString("en-PH", {
-                                  minimumFractionDigits: 2,
-                                })}
+                            <div className="text-right sm:mt-0">
+                              <p className="text-xs text-stone-500">
+                                Product Subtotal
+                              </p>
+                              <span className="text-lg font-bold text-emerald-700">
+                                {formatMoney(getProductSubtotal(order))}
                               </span>
                             </div>
                           </div>
@@ -809,12 +885,8 @@ export function CustomerDashboard() {
 
                                     <div className="flex items-center gap-3">
                                       <span className="font-medium">
-                                        ₱
-                                        {(item.price * item.quantity).toLocaleString(
-                                          "en-PH",
-                                          {
-                                            minimumFractionDigits: 2,
-                                          }
+                                        {formatMoney(
+                                          item.price * item.quantity
                                         )}
                                       </span>
 
@@ -838,16 +910,39 @@ export function CustomerDashboard() {
                                 ))}
                               </div>
 
-                              <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center">
-                                <span className="font-bold text-stone-800">
-                                  Total
-                                </span>
-                                <span className="font-bold text-lg text-emerald-600">
-                                  ₱
-                                  {order.total.toLocaleString("en-PH", {
-                                    minimumFractionDigits: 2,
-                                  })}
-                                </span>
+                              <div className="mt-4 border-t border-stone-100 pt-3">
+                                <div className="flex justify-between gap-4">
+                                  <span className="font-bold text-stone-800">
+                                    Product Subtotal
+                                  </span>
+                                  <span className="font-bold text-lg text-emerald-600">
+                                    {formatMoney(getProductSubtotal(order))}
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 flex justify-between gap-4 text-sm">
+                                  <span className="text-stone-500">
+                                    Delivery Fee
+                                  </span>
+                                  <span className="font-medium text-stone-800">
+                                    {getDeliveryFeeLabel(order)}
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 flex justify-between gap-4 text-sm">
+                                  <span className="text-stone-500">
+                                    Final Total
+                                  </span>
+                                  <span className="font-medium text-stone-800">
+                                    {getFinalTotalLabel(order)}
+                                  </span>
+                                </div>
+
+                                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                                  Delivery fee is not included in the product
+                                  subtotal. The admin will confirm the delivery
+                                  fee based on your location.
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -861,29 +956,29 @@ export function CustomerDashboard() {
 
             <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-7">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-  <div>
-    <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
-      <Calendar className="h-5 w-5 text-emerald-600" />
-      Landscaping Appointments
-    </h2>
-    <p className="mt-1 text-sm text-stone-500">
-      View your scheduled consultation and appointment status.
-    </p>
-  </div>
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900 md:text-xl">
+                    <Calendar className="h-5 w-5 text-emerald-600" />
+                    Landscaping Appointments
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-500">
+                    View your scheduled consultation and appointment status.
+                  </p>
+                </div>
 
-  <button
-    type="button"
-    onClick={() => navigate("/landscaping/booking")}
-    className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:w-auto"
-  >
-    Book New
-  </button>
-</div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/landscaping/booking")}
+                  className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:w-auto"
+                >
+                  Book New
+                </button>
+              </div>
 
               {loadingAppointments ? (
                 <div className="rounded-2xl border border-stone-100 bg-stone-50 p-8 text-center text-sm text-stone-500">
-  Loading your appointments...
-</div>
+                  Loading your appointments...
+                </div>
               ) : appointments.length === 0 ? (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-center">
                   <Leaf className="w-12 h-12 text-amber-600 mx-auto mb-2" />
@@ -928,7 +1023,7 @@ export function CustomerDashboard() {
                               </div>
 
                               <div className="min-w-0">
-  <h3 className="font-bold text-stone-900">
+                                <h3 className="font-bold text-stone-900">
                                   {apt.date
                                     ? formatDisplayDate(apt.date)
                                     : "No date provided"}{" "}
@@ -1002,7 +1097,9 @@ export function CustomerDashboard() {
                                   </div>
 
                                   <div className="flex justify-between">
-                                    <span className="text-stone-600">Type:</span>
+                                    <span className="text-stone-600">
+                                      Type:
+                                    </span>
                                     <span className="font-medium text-stone-800">
                                       Consultation
                                     </span>
@@ -1066,9 +1163,9 @@ export function CustomerDashboard() {
             <Cart />
 
             <div className="rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-6">
-  <h3 className="mb-4 text-lg font-bold text-stone-900">
-    Account Summary
-  </h3>
+              <h3 className="mb-4 text-lg font-bold text-stone-900">
+                Account Summary
+              </h3>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-4 rounded-2xl bg-stone-50 px-4 py-3">
@@ -1109,7 +1206,7 @@ export function CustomerDashboard() {
             <div className="relative overflow-hidden rounded-3xl bg-stone-900 p-5 text-white shadow-sm md:p-6">
               <div className="relative z-10">
                 <h3 className="mb-2 text-lg font-bold">Need Help?</h3>
-<p className="mb-5 text-sm leading-relaxed text-stone-400">
+                <p className="mb-5 text-sm leading-relaxed text-stone-400">
                   Have questions about an order or your upcoming appointment?
                 </p>
 

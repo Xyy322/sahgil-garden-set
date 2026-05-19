@@ -56,7 +56,11 @@ interface OrderData {
   address?: string;
   items?: OrderItem[];
   itemSummary?: string;
-  total?: number;
+  productSubtotal?: number;
+deliveryFee?: number | null;
+finalTotal?: number | null;
+total?: number;
+deliveryNote?: string;
   status?: OrderStatus;
   notes?: string;
   paymentMethod?: string;
@@ -205,6 +209,33 @@ function statusBadge(status?: OrderStatus): string {
   }
 }
 
+function getProductSubtotal(order: OrderData): number {
+  return Number(order.productSubtotal ?? order.total) || 0;
+}
+
+function getDeliveryFeeLabel(order: OrderData): string {
+  if (typeof order.deliveryFee === "number" && Number.isFinite(order.deliveryFee)) {
+    return formatMoney(order.deliveryFee);
+  }
+
+  return "To be confirmed";
+}
+
+function getFinalTotalLabel(order: OrderData): string {
+  if (typeof order.finalTotal === "number" && Number.isFinite(order.finalTotal)) {
+    return formatMoney(order.finalTotal);
+  }
+
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return formatMoney(getProductSubtotal(order) + order.deliveryFee);
+  }
+
+  return "To be confirmed";
+}
+
 function getDeliveryAddress(order: OrderData): string {
   if (order.shippingInfo?.address) {
     return `${order.shippingInfo.address}, ${order.shippingInfo.city || ""} ${
@@ -268,7 +299,20 @@ const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
               status: normalizeOrderStatus(data.status),
               paymentMethod: normalizePaymentMethod(data.paymentMethod),
               items: normalizeItems(data.items),
-              total: Number(data.total) || 0,
+              productSubtotal: Number(data.productSubtotal ?? data.total) || 0,
+
+deliveryFee:
+  typeof data.deliveryFee === "number" && Number.isFinite(data.deliveryFee)
+    ? data.deliveryFee
+    : null,
+
+finalTotal:
+  typeof data.finalTotal === "number" && Number.isFinite(data.finalTotal)
+    ? data.finalTotal
+    : null,
+
+// Legacy total means product subtotal only.
+total: Number(data.productSubtotal ?? data.total) || 0,
             };
           });
 
@@ -332,7 +376,7 @@ const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
         order.id,
         shippingText,
         itemText,
-        formatMoney(order.total),
+        formatMoney(getProductSubtotal(order)),
       ]
         .filter(Boolean)
         .join(" ")
@@ -373,8 +417,8 @@ useEffect(() => {
         .length,
       delivered: orders.filter((order) => order.status === "Delivered").length,
       revenue: orders
-        .filter((order) => order.status !== "Cancelled")
-        .reduce((sum, order) => sum + (Number(order.total) || 0), 0),
+  .filter((order) => order.status !== "Cancelled")
+  .reduce((sum, order) => sum + getProductSubtotal(order), 0),
     };
   }, [orders]);
 
@@ -458,7 +502,7 @@ useEffect(() => {
           icon={<PackageCheck className="h-5 w-5" />}
         />
         <SummaryCard
-          label="Valid Sales"
+          label="Product Sales"
           value={formatMoney(stats.revenue)}
           icon={<CreditCard className="h-5 w-5" />}
         />
@@ -554,7 +598,7 @@ of {filteredOrders.length} filtered order
                     <p className="mt-1 text-sm text-muted-foreground">
                       {order.items?.length || 0} item
                       {(order.items?.length || 0) === 1 ? "" : "s"} •{" "}
-                      {formatMoney(order.total)}
+                      {formatMoney(getProductSubtotal(order))}
                     </p>
                   </div>
 
@@ -710,13 +754,28 @@ of {filteredOrders.length} filtered order
                     value={selectedLiveOrder.paymentMethod || "N/A"}
                   />
                   <InfoRow
-                    label="Total"
-                    value={formatMoney(selectedLiveOrder.total)}
-                    strong
-                  />
-                </InfoBox>
-              </div>
+  label="Product Subtotal"
+  value={formatMoney(getProductSubtotal(selectedLiveOrder))}
+  strong
+/>
 
+<InfoRow
+  label="Delivery Fee"
+  value={getDeliveryFeeLabel(selectedLiveOrder)}
+/>
+
+<InfoRow
+  label="Final Total"
+  value={getFinalTotalLabel(selectedLiveOrder)}
+/>
+                </InfoBox>
+
+              </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
+  Delivery fee is not automatically computed because it depends on the
+  customer’s location. The displayed amount is the product subtotal only until
+  the admin confirms the delivery fee.
+</div>
               {Array.isArray(selectedLiveOrder.items) &&
                 selectedLiveOrder.items.length > 0 && (
                   <div>

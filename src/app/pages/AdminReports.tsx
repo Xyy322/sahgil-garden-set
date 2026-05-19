@@ -1,10 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  query,
-  Timestamp,
-} from "firebase/firestore";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import {
   CalendarDays,
   ClipboardList,
@@ -26,7 +21,14 @@ type OrderStatus =
 
 interface ReportOrder {
   id: string;
+
+  productSubtotal?: number;
+  deliveryFee?: number | null;
+  finalTotal?: number | null;
+
+  // Legacy field. In this system, this means product subtotal only.
   total: number;
+
   status: OrderStatus;
   createdAt?: unknown;
 }
@@ -75,7 +77,9 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
   return "Pending";
 }
 
-function normalizeAppointmentStatus(status: unknown): ReportAppointment["status"] {
+function normalizeAppointmentStatus(
+  status: unknown
+): ReportAppointment["status"] {
   if (status === "approved") return "approved";
   if (status === "rejected") return "rejected";
   if (status === "completed") return "completed";
@@ -88,6 +92,10 @@ function formatMoney(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function getProductSubtotal(order: ReportOrder): number {
+  return Number(order.productSubtotal ?? order.total) || 0;
 }
 
 function formatDateInput(date: Date): string {
@@ -155,12 +163,31 @@ export function AdminReports() {
       q,
       (snapshot) => {
         try {
-          const mapped = snapshot.docs.map((document) => {
+          const mapped: ReportOrder[] = snapshot.docs.map((document) => {
             const data = document.data();
+
+            const productSubtotal = Number(data.productSubtotal ?? data.total) || 0;
 
             return {
               id: document.id,
-              total: Number(data.total) || 0,
+
+              productSubtotal,
+
+              deliveryFee:
+                typeof data.deliveryFee === "number" &&
+                Number.isFinite(data.deliveryFee)
+                  ? data.deliveryFee
+                  : null,
+
+              finalTotal:
+                typeof data.finalTotal === "number" &&
+                Number.isFinite(data.finalTotal)
+                  ? data.finalTotal
+                  : null,
+
+              // Legacy total means product subtotal only.
+              total: productSubtotal,
+
               status: normalizeOrderStatus(data.status),
               createdAt: data.createdAt ?? null,
             };
@@ -206,7 +233,7 @@ export function AdminReports() {
       q,
       (snapshot) => {
         try {
-          const mapped = snapshot.docs.map((document) => {
+          const mapped: ReportAppointment[] = snapshot.docs.map((document) => {
             const data = document.data();
 
             return {
@@ -259,8 +286,13 @@ export function AdminReports() {
       return monthKeyFromUnknown(appointment.createdAt) === selectedMonth;
     });
 
-    const dailySales = dailyOrders.reduce((sum, order) => sum + order.total, 0);
-    const monthlySales = monthlyOrders.reduce((sum, order) => sum + order.total, 0);
+    const dailyProductSales = dailyOrders
+      .filter((order) => order.status !== "Cancelled")
+      .reduce((sum, order) => sum + getProductSubtotal(order), 0);
+
+    const monthlyProductSales = monthlyOrders
+      .filter((order) => order.status !== "Cancelled")
+      .reduce((sum, order) => sum + getProductSubtotal(order), 0);
 
     const countOrdersByStatus = (list: ReportOrder[], status: OrderStatus) =>
       list.filter((order) => order.status === status).length;
@@ -275,13 +307,14 @@ export function AdminReports() {
       monthlyOrders,
       dailyAppointments,
       monthlyAppointments,
-      dailySales,
-      monthlySales,
+
+      dailyProductSales,
+      monthlyProductSales,
 
       dailyPendingOrders: countOrdersByStatus(dailyOrders, "Pending"),
-      dailyCompletedOrders: countOrdersByStatus(dailyOrders, "Delivered"),
+      dailyDeliveredOrders: countOrdersByStatus(dailyOrders, "Delivered"),
       monthlyPendingOrders: countOrdersByStatus(monthlyOrders, "Pending"),
-      monthlyCompletedOrders: countOrdersByStatus(monthlyOrders, "Delivered"),
+      monthlyDeliveredOrders: countOrdersByStatus(monthlyOrders, "Delivered"),
 
       dailyPendingAppointments: countAppointmentsByStatus(
         dailyAppointments,
@@ -348,11 +381,13 @@ export function AdminReports() {
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Admin Reports
           </p>
+
           <h1 className="text-2xl font-bold text-card-foreground md:text-3xl">
             Daily and Monthly Report Summary
           </h1>
+
           <p className="mt-1 text-sm text-muted-foreground">
-            Monitor orders, sales, and landscaping appointment activity.
+            Monitor orders, product sales, and landscaping appointment activity.
           </p>
         </div>
 
@@ -374,7 +409,7 @@ export function AdminReports() {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(event) => setSelectedDate(event.target.value)}
             className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -386,10 +421,16 @@ export function AdminReports() {
           <input
             type="month"
             value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
+            onChange={(event) => setSelectedMonth(event.target.value)}
             className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+      </div>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
+        Product sales are based on product subtotals only and do not include
+        delivery fees. Delivery fees are confirmed separately by the admin based
+        on the customer&apos;s location.
       </div>
 
       <section className="space-y-4">
@@ -404,16 +445,19 @@ export function AdminReports() {
             value={reportData.dailyOrders.length}
             icon={<PackageCheck className="h-5 w-5" />}
           />
+
           <ReportCard
-            title="Daily Sales"
-            value={formatMoney(reportData.dailySales)}
+            title="Daily Product Sales"
+            value={formatMoney(reportData.dailyProductSales)}
             icon={<TrendingUp className="h-5 w-5" />}
           />
+
           <ReportCard
             title="Daily Appointments"
             value={reportData.dailyAppointments.length}
             icon={<ClipboardList className="h-5 w-5" />}
           />
+
           <ReportCard
             title="Pending Appointments"
             value={reportData.dailyPendingAppointments}
@@ -425,7 +469,7 @@ export function AdminReports() {
           title="Daily Summary"
           rows={[
             ["Pending Orders", reportData.dailyPendingOrders],
-            ["Delivered Orders", reportData.dailyCompletedOrders],
+            ["Delivered Orders", reportData.dailyDeliveredOrders],
             ["Pending Appointments", reportData.dailyPendingAppointments],
             ["Approved Appointments", reportData.dailyApprovedAppointments],
             ["Rejected Appointments", reportData.dailyRejectedAppointments],
@@ -445,16 +489,19 @@ export function AdminReports() {
             value={reportData.monthlyOrders.length}
             icon={<PackageCheck className="h-5 w-5" />}
           />
+
           <ReportCard
-            title="Monthly Sales"
-            value={formatMoney(reportData.monthlySales)}
+            title="Monthly Product Sales"
+            value={formatMoney(reportData.monthlyProductSales)}
             icon={<TrendingUp className="h-5 w-5" />}
           />
+
           <ReportCard
             title="Monthly Appointments"
             value={reportData.monthlyAppointments.length}
             icon={<ClipboardList className="h-5 w-5" />}
           />
+
           <ReportCard
             title="Completed Appointments"
             value={reportData.monthlyCompletedAppointments}
@@ -466,7 +513,7 @@ export function AdminReports() {
           title="Monthly Summary"
           rows={[
             ["Pending Orders", reportData.monthlyPendingOrders],
-            ["Delivered Orders", reportData.monthlyCompletedOrders],
+            ["Delivered Orders", reportData.monthlyDeliveredOrders],
             ["Pending Appointments", reportData.monthlyPendingAppointments],
             ["Approved Appointments", reportData.monthlyApprovedAppointments],
             ["Rejected Appointments", reportData.monthlyRejectedAppointments],
@@ -485,7 +532,7 @@ function ReportCard({
 }: {
   title: string;
   value: string | number;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm print:shadow-none">
@@ -516,7 +563,10 @@ function ReportTable({
         <table className="w-full min-w-[420px] text-left">
           <tbody>
             {rows.map(([label, value]) => (
-              <tr key={label} className="border-b border-border last:border-b-0">
+              <tr
+                key={label}
+                className="border-b border-border last:border-b-0"
+              >
                 <td className="px-5 py-3 text-sm text-muted-foreground">
                   {label}
                 </td>

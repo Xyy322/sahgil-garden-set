@@ -39,6 +39,9 @@ interface CustomerRecord {
 
 interface CustomerOrder {
   id: string;
+  productSubtotal?: number;
+  deliveryFee?: number | null;
+  finalTotal?: number | null;
   total: number;
   status: string;
   paymentMethod: string;
@@ -95,6 +98,10 @@ function formatDate(value: unknown): string {
     month: "short",
     day: "numeric",
   });
+}
+
+function getProductSubtotal(order: CustomerOrder): number {
+  return Number(order.productSubtotal ?? order.total) || 0;
 }
 
 function formatMoney(value: number): string {
@@ -158,9 +165,21 @@ function normalizePaymentMethod(method: unknown): string {
 function normalizeOrder(id: string, data: any): CustomerOrder {
   return {
     id,
-    total: Number(data.total) || 0,
-    status: normalizeOrderStatus(data.status),
-    paymentMethod: normalizePaymentMethod(data.paymentMethod),
+    productSubtotal: Number(data.productSubtotal ?? data.total) || 0,
+    deliveryFee:
+      typeof data.deliveryFee === "number" && Number.isFinite(data.deliveryFee)
+        ? data.deliveryFee
+        : null,
+    finalTotal:
+      typeof data.finalTotal === "number" && Number.isFinite(data.finalTotal)
+        ? data.finalTotal
+        : null,
+    total: Number(data.productSubtotal ?? data.total) || 0,
+    status: typeof data.status === "string" ? data.status : "Pending",
+    paymentMethod:
+      typeof data.paymentMethod === "string"
+        ? data.paymentMethod
+        : "Cash on Delivery",
     createdAt: data.createdAt ?? null,
   };
 }
@@ -678,7 +697,7 @@ useEffect(() => {
                             </span>
 
                             <span className="font-bold text-primary">
-                              {formatMoney(order.total)}
+                              {formatMoney(getProductSubtotal(order))}
                             </span>
                           </div>
                         </div>

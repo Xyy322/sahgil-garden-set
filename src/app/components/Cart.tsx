@@ -54,7 +54,10 @@ export function Cart() {
           Clear Cart
         </button>
         <span className="font-bold text-lg text-stone-900">
-          Total: ₱{items.reduce((sum, i) => sum + i.price * i.quantity, 0)}
+          Product Subtotal: ₱{items.reduce((sum, i) => sum + i.price * i.quantity, 0)}
+          <p className="mt-1 text-xs text-stone-500">
+  Delivery fee is not included and will be confirmed by the admin.
+</p>
         </span>
       </div>
       <button
