@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -7,10 +7,10 @@ import {
   PackageSearch,
   CalendarCheck,
   LogOut,
-  Search,
   MessageSquare,
   Menu,
   BarChart3,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent } from "./ui/sheet";
@@ -19,7 +19,7 @@ import { NotificationBell } from "./notifications/NotificationBell";
 type AdminNavItem = {
   path: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
 };
 
 export function AdminLayout() {
@@ -63,6 +63,11 @@ export function AdminLayout() {
       path: "/dashboard/admin/reports",
       label: "Reports",
       icon: BarChart3,
+    },
+    {
+      path: "/dashboard/admin/users",
+      label: "Customer Records",
+      icon: UsersRound,
     },
   ];
 
@@ -146,29 +151,30 @@ export function AdminLayout() {
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <header className="bg-white text-stone-900 px-4 md:px-6 py-4 border-b border-stone-200 sticky top-0 z-30">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen(true)}
-              className="md:hidden p-2 text-stone-600 hover:text-stone-900 rounded-lg hover:bg-stone-100"
-              aria-label="Open admin menu"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(true)}
+                className="md:hidden p-2 text-stone-600 hover:text-stone-900 rounded-lg hover:bg-stone-100"
+                aria-label="Open admin menu"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
 
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
-              {role === "admin" && (
-  <div className="ml-auto">
-    <NotificationBell userId="admin" role="admin" />
-  </div>
-)}
-              <input
-                type="text"
-                placeholder="Quick search..."
-                className="w-full bg-white border border-stone-200 rounded-xl pl-10 pr-4 py-2 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              />
+              <div>
+                <p className="text-sm font-semibold text-stone-900">
+                  Admin Dashboard
+                </p>
+                <p className="text-xs text-stone-500 hidden sm:block">
+                  Sahgil Garden Furniture Trading
+                </p>
+              </div>
             </div>
+
+            {role === "admin" && (
+              <NotificationBell userId="admin" role="admin" />
+            )}
           </div>
         </header>
 

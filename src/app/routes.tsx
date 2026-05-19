@@ -18,6 +18,7 @@ import { LandscapingBooking } from "./pages/LandscapingBooking";
 import { Profile } from "./pages/Profile";
 import { ProfileEdit } from "./pages/ProfileEdit";
 import { AdminReports } from "./pages/AdminReports";
+import { AdminUsers } from "./pages/AdminUsers";
 import {
   RoleProtectedRoute,
   PublicOnlyRoute,
@@ -127,6 +128,7 @@ export const router = createBrowserRouter([
         { path: "appointments", element: <AdminAppointments /> },
         { path: "inquiries", element: <AdminInquiries /> },
         { path: "reports", element: <AdminReports /> },
+        { path: "users", element: <AdminUsers /> },
       ],
     },
 
