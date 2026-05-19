@@ -21,7 +21,7 @@ import {
   Search,
   UserRound,
 } from "lucide-react";
-
+import { toast } from "sonner";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
 import { useAuth } from "../context/AuthContext";
@@ -446,10 +446,17 @@ useEffect(() => {
           statusRefId: orderId,
         });
       }
+      toast.success("Order status updated", {
+  description: `Order is now ${newStatus}.`,
+});
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to update status";
       setOrdersError(message);
+
+toast.error("Failed to update order", {
+  description: message,
+});
     } finally {
       setUpdatingOrderId(null);
     }

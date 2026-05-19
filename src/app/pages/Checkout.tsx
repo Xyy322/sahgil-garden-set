@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import {
   AlertCircle,
@@ -136,7 +137,7 @@ export function Checkout() {
     try {
       const productSubtotal = total;
 
-const orderData = {
+      const orderData = {
         userId: user.uid,
         orderNumber: `SGS-${Date.now()}`,
 
@@ -162,15 +163,16 @@ const orderData = {
         },
 
         productSubtotal,
-deliveryFee: null,
-finalTotal: null,
+        deliveryFee: null,
+        finalTotal: null,
 
-// Legacy field kept for existing pages. This means product subtotal only.
-total: productSubtotal,
+        // Legacy field kept for existing pages. This means product subtotal only.
+        total: productSubtotal,
 
-paymentMethod: "Cash on Delivery",
-deliveryNote: "Delivery fee is not included and will be confirmed by the admin based on customer location.",
-status: "Pending",
+        paymentMethod: "Cash on Delivery",
+        deliveryNote:
+          "Delivery fee is not included and will be confirmed by the admin based on customer location.",
+        status: "Pending",
 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -202,15 +204,26 @@ status: "Pending",
       });
 
       clearCart();
+
+      toast.success("Order placed successfully", {
+        description:
+          "Your order was submitted. The delivery fee will be confirmed by the admin.",
+      });
+
       setOrderSuccess(true);
     } catch (err) {
       console.error("Checkout error:", err);
 
-      setError(
+      const message =
         err instanceof Error
           ? err.message
-          : "Failed to place order. Please try again."
-      );
+          : "Failed to place order. Please try again.";
+
+      setError(message);
+
+      toast.error("Checkout failed", {
+        description: message,
+      });
     } finally {
       setLoading(false);
     }
@@ -281,17 +294,20 @@ status: "Pending",
                 </span>
               </div>
 
-              <div className="mt-2 flex justify-between border-t border-stone-200 pt-2 text-sm">
-                <span className="font-semibold text-stone-800">Product Subtotal</span>
-                
+              <div className="mt-2 flex justify-between gap-4 border-t border-stone-200 pt-3 text-sm">
+                <span className="font-semibold text-stone-800">
+                  Product Subtotal
+                </span>
+
                 <span className="font-bold text-emerald-600">
                   {formatMoney(placedOrder.total)}
                 </span>
-                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-  Delivery fee is not included in the product subtotal. The admin will confirm
-  the delivery fee based on your location.
-</p>
               </div>
+
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                Delivery fee is not included in the product subtotal. The admin
+                will confirm the delivery fee based on your location.
+              </p>
             </div>
           </div>
 
@@ -457,6 +473,7 @@ status: "Pending",
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
                 <div className="flex items-start gap-3">
                   <CreditCard className="mt-0.5 h-5 w-5 text-emerald-700" />
+
                   <div>
                     <p className="text-sm font-semibold text-stone-800">
                       Payment Method
@@ -531,7 +548,10 @@ status: "Pending",
             <div className="mt-5 border-t border-stone-200 pt-5">
               <div className="mb-3 flex items-center gap-2 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">
                 <Truck className="h-4 w-4 shrink-0" />
-                Delivery fee is not included and will be confirmed by the shop based on your location.
+                <span>
+                  Delivery fee is not included and will be confirmed by the shop
+                  based on your location.
+                </span>
               </div>
 
               <div className="flex justify-between text-base font-bold text-stone-900">

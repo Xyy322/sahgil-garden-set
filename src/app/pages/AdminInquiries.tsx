@@ -8,7 +8,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { Mail, MessageSquare, Search, UserRound } from "lucide-react";
-
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../../utils/firebase/config";
 
@@ -281,13 +281,21 @@ export function AdminInquiries() {
         adminReadAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      toast.success("Inquiry marked as read", {
+  description: "This inquiry has been updated successfully.",
+});
     } catch (err) {
       console.error("Failed to mark inquiry as read:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to mark inquiry as read."
-      );
+      const message =
+  err instanceof Error
+    ? err.message
+    : "Failed to mark inquiry as read.";
+
+setError(message);
+
+toast.error("Failed to update inquiry", {
+  description: message,
+});
     }
   };
 

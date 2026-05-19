@@ -20,7 +20,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-
+import { toast } from "sonner";
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
 import {
@@ -296,11 +296,19 @@ export function AppointmentsManagement() {
           statusRefId: id,
         });
       }
+      toast.success("Appointment updated", {
+  description: `Appointment is now ${newStatus}.`,
+});
     } catch (err) {
       console.error("Appointment status update error:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to update appointment"
-      );
+      const message =
+  err instanceof Error ? err.message : "Failed to update appointment";
+
+setError(message);
+
+toast.error("Failed to update appointment", {
+  description: message,
+});
     } finally {
       setUpdatingId(null);
     }

@@ -19,7 +19,7 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-
+import { toast } from "sonner";
 import { db } from "../../utils/firebase/config";
 import type { Product } from "../../types/product";
 import { uploadProductImage } from "../../utils/firebase/uploadProductImage";
@@ -333,22 +333,35 @@ export function AdminProducts() {
       };
 
       if (editingProduct) {
-        await updateDoc(doc(db, "products", editingProduct.id), productPayload);
-      } else {
-        await addDoc(collection(db, "products"), {
-          ...productPayload,
-          createdAt: serverTimestamp(),
-        });
-      }
+  await updateDoc(doc(db, "products", editingProduct.id), productPayload);
 
-      resetForm();
+  toast.success("Product updated", {
+    description: `${cleanName} has been updated successfully.`,
+  });
+} else {
+  await addDoc(collection(db, "products"), {
+    ...productPayload,
+    createdAt: serverTimestamp(),
+  });
+
+  toast.success("Product added", {
+    description: `${cleanName} has been added to the catalog.`,
+  });
+}
+
+resetForm();
     } catch (error) {
       console.error("Error saving product:", error);
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : "Failed to save product. Please try again."
-      );
+      const message =
+  error instanceof Error
+    ? error.message
+    : "Failed to save product. Please try again.";
+
+setFormError(message);
+
+toast.error("Failed to save product", {
+  description: message,
+});
     } finally {
       setSubmitting(false);
     }
@@ -371,12 +384,19 @@ export function AdminProducts() {
 
     try {
       await deleteDoc(doc(db, "products", id));
+
+toast.success("Product deleted", {
+  description: "The product has been removed successfully.",
+});
     } catch (error) {
       console.error("Error deleting product:", error);
       alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete product. Please try again."
+        toast.error("Failed to delete product", {
+  description:
+    error instanceof Error
+      ? error.message
+      : "Failed to delete product. Please try again.",
+})
       );
     } finally {
       setDeletingProductId(null);
