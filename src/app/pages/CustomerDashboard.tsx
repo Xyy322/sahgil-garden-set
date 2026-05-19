@@ -176,6 +176,7 @@ function getFinalTotalLabel(order: Order): string {
   return "To be confirmed";
 }
 
+
 function getFinalTotalAmount(order: Order): number | null {
   if (
     typeof order.finalTotal === "number" &&
@@ -902,10 +903,10 @@ const visibleAppointments = filteredAppointments.slice(
                                   <div className="flex items-center justify-between min-w-[400px]">
                                     {ORDER_STEPS.map((step, index) => {
                                       const StepIcon = step.icon;
-                                      const isCompleted = index <= currentStep;
-                                      const isCurrent = index === currentStep;
-                                      const ITEMS_PER_PAGE = 5;  
-                                      return (
+const isCompleted = index <= currentStep;
+const isCurrent = index === currentStep;
+
+return (
                                         <div
                                           key={step.key}
                                           className="flex flex-col items-center flex-1 relative"
@@ -1323,24 +1324,22 @@ const visibleAppointments = filteredAppointments.slice(
                               </div>
                             )}
 
-                            {apt.status === "pending" && (
-                              <div className="mt-4 flex gap-2">
-                                {apt.status === "pending" ? (
-  <button
-    type="button"
-    onClick={() => setCancelAppointmentId(appointmentId)}
-    className="mt-4 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 sm:w-auto"
-  >
-    Cancel Request
-  </button>
+                            {apt.status === "pending" ? (
+  <div className="mt-4 flex gap-2">
+    <button
+      type="button"
+      onClick={() => setCancelAppointmentId(appointmentId)}
+      className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 sm:w-auto"
+    >
+      Cancel Request
+    </button>
+  </div>
 ) : apt.status === "approved" ? (
   <p className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-800">
     This appointment has already been approved. Please contact the admin for
     changes or cancellation.
   </p>
 ) : null}
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
