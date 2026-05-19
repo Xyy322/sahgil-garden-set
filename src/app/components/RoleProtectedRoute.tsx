@@ -68,13 +68,13 @@ export function RoleProtectedRoute({
   }
 
   if (!user) {
+    const from = `${location.pathname}${location.search}${location.hash}`;
+
     return (
-      <AccessErrorPage
-        code="401"
-        title="Login Required"
-        message="You need to log in before accessing this protected page."
-        actionLabel="Go to Login"
-        actionTo="/login"
+      <Navigate
+        to="/login"
+        replace
+        state={{ from }}
       />
     );
   }
@@ -106,7 +106,7 @@ export function RoleProtectedRoute({
             ? "This page is restricted to administrators only. Your account does not have permission to access the admin dashboard."
             : "This page is restricted and your account does not have permission to access it."
         }
-        actionLabel={role === "admin" ? "Go to Admin Dashboard" : "Go to Home"}
+        actionLabel={role === "admin" ? "Go to Admin Dashboard" : "Go to My Dashboard"}
         actionTo={fallbackPathForRole(role)}
       />
     );
