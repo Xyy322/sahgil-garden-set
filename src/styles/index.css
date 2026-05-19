@@ -36,3 +36,74 @@
     rounded-full font-semibold;
   }
 } 
+
+@layer base {
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  button:disabled,
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply border-border;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply outline-none ring-2 ring-emerald-500/30 border-emerald-500;
+  }
+}
+
+@layer components {
+  .soft-card {
+    @apply rounded-3xl border border-stone-100 bg-white shadow-sm transition-all duration-300;
+  }
+
+  .soft-card-hover {
+    @apply hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  .admin-page-header {
+    @apply rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8;
+  }
+
+  .admin-page-kicker {
+    @apply text-sm font-semibold uppercase tracking-wide text-emerald-700;
+  }
+
+  .admin-page-title {
+    @apply mt-1 text-2xl font-bold text-stone-900 md:text-3xl;
+  }
+
+  .admin-page-description {
+    @apply mt-1 max-w-3xl text-sm leading-relaxed text-stone-500;
+  }
+
+  .empty-state-card {
+    @apply rounded-3xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-stone-500;
+  }
+
+  .status-pill {
+    @apply inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-semibold;
+  }
+
+  .action-button-primary {
+    @apply rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 hover:shadow-md;
+  }
+
+  .action-button-secondary {
+    @apply rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50 hover:text-stone-900;
+  }
+}

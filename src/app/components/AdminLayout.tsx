@@ -77,7 +77,7 @@ export function AdminLayout() {
     <>
       <div className="p-6 border-b border-stone-200 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center font-bold text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 font-bold text-white shadow-sm">
             A
           </div>
 
@@ -104,10 +104,10 @@ export function AdminLayout() {
               key={item.path}
               type="button"
               variant="ghost"
-              className={`w-full justify-start h-12 gap-3 font-medium rounded-xl transition-colors ${
+              className={`h-12 w-full justify-start gap-3 rounded-xl font-medium transition-all duration-200 ${
                 isActive
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "text-stone-700 hover:bg-stone-100 hover:text-stone-900"
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm"
+                  : "text-stone-700 hover:-translate-y-0.5 hover:bg-stone-100 hover:text-stone-900"
               }`}
               onClick={() => {
                 navigate(item.path);
@@ -137,7 +137,7 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-stone-50 flex">
-      <aside className="hidden md:flex w-64 bg-white border-r border-stone-200 shadow-sm flex-col shrink-0">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-stone-200 bg-white/95 shadow-sm backdrop-blur">
         <SidebarContent />
       </aside>
 
@@ -152,7 +152,7 @@ export function AdminLayout() {
 </Sheet>
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <header className="bg-white text-stone-900 px-4 md:px-6 py-4 border-b border-stone-200 sticky top-0 z-30">
+        <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/90 px-4 py-4 text-stone-900 shadow-sm backdrop-blur md:px-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -180,7 +180,7 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-auto bg-stone-50">
+        <main className="flex-1 overflow-auto bg-gradient-to-b from-stone-50 to-emerald-50/30 p-4 md:p-6">
           <Outlet />
         </main>
       </div>
