@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { Eye, EyeOff } from "lucide-react";
 
 import { auth, db } from "../../utils/firebase/config";
 import { mapFirebaseAuthError } from "../../utils/firebase/errorMapper";
@@ -15,13 +16,10 @@ function getSafeRedirectPath(from: unknown): string | null {
 
   const trimmedPath = from.trim();
 
-  // Only allow internal app routes.
-  // This prevents unsafe redirects such as "https://fake-site.com".
   if (!trimmedPath.startsWith("/") || trimmedPath.startsWith("//")) {
     return null;
   }
 
-  // Do not redirect users back to login/register after logging in.
   if (trimmedPath === "/login" || trimmedPath === "/register") {
     return null;
   }
@@ -36,7 +34,6 @@ function getCustomerRedirectPath(from: unknown): string {
     return "/dashboard/customer";
   }
 
-  // Customers should never be redirected to admin-only pages.
   if (safePath.startsWith("/dashboard/admin")) {
     return "/dashboard/customer";
   }
@@ -48,6 +45,7 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -113,24 +111,32 @@ export function Login() {
   };
 
   return (
-    <div className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center min-h-[60vh] flex flex-col items-center justify-center">
-      <h1 className="text-4xl font-bold text-stone-800 mb-6">Login</h1>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center sm:px-6 lg:px-8">
+      <h1 className="mb-6 text-4xl font-bold text-stone-800">Login</h1>
 
-      <p className="text-xl text-stone-600 max-w-2xl mb-8">
+      <p className="mb-8 max-w-2xl text-xl text-stone-600">
         Access your account to manage your consultations and orders.
       </p>
 
       <form
         onSubmit={handleLogin}
-        className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-left"
+        className="w-full max-w-md rounded-2xl border border-stone-100 bg-white p-8 text-left shadow-sm"
       >
         <div className="mb-4">
+          <label
+            htmlFor="email"
+            className="mb-2 block text-sm font-semibold text-stone-700"
+          >
+            Email Address
+          </label>
+
           <input
+            id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-            placeholder="Email Address"
+            className="w-full rounded-lg border border-stone-200 px-4 py-3 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="Enter your email address"
             autoComplete="email"
             required
             disabled={isSubmitting}
@@ -138,34 +144,58 @@ export function Login() {
         </div>
 
         <div className="mb-6">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-            placeholder="Password"
-            autoComplete="current-password"
-            minLength={8}
-            required
-            disabled={isSubmitting}
-          />
+          <label
+            htmlFor="password"
+            className="mb-2 block text-sm font-semibold text-stone-700"
+          >
+            Password
+          </label>
+
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-stone-200 px-4 py-3 pr-12 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              minLength={8}
+              required
+              disabled={isSubmitting}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              disabled={isSubmitting}
+              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 mb-6">
+        <div className="mb-6 flex flex-col gap-3">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3 bg-stone-900 text-white rounded-lg font-semibold hover:bg-stone-800 transition-colors text-center shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-stone-900 py-3 text-center font-semibold text-white shadow-md transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Signing In..." : "Sign In"}
           </button>
         </div>
 
-        <div className="text-sm text-center text-stone-500">
+        <div className="text-center text-sm text-stone-500">
           Don&apos;t have an account?{" "}
           <button
             type="button"
-            className="text-emerald-600 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0"
+            className="cursor-pointer border-none bg-transparent p-0 font-semibold text-emerald-600 hover:underline"
             onClick={() => navigate("/register")}
             disabled={isSubmitting}
           >
