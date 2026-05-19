@@ -2,7 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -31,7 +30,6 @@ service cloud.firestore {
         "Canceled", "canceled"
       ];
     }
-
 
     function isValidNotificationType(type) {
       return type in ["order", "appointment", "inquiry"];
@@ -126,7 +124,6 @@ service cloud.firestore {
         );
     }
 
-
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
 
@@ -145,7 +142,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-        match /orders/{orderId} {
+    match /orders/{orderId} {
       allow create: if isAuthenticated()
         && request.resource.data.keys().hasOnly([
           "userId",
@@ -167,15 +164,12 @@ service cloud.firestore {
           "updatedAt"
         ])
 
-        // Ownership
         && request.resource.data.userId == request.auth.uid
 
-        // Order identity
         && request.resource.data.orderNumber is string
         && request.resource.data.orderNumber.size() >= 5
         && request.resource.data.orderNumber.size() <= 40
 
-        // Customer details
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 1
         && request.resource.data.customerName.size() <= 120
@@ -191,12 +185,10 @@ service cloud.firestore {
         && request.resource.data.address.size() > 5
         && request.resource.data.address.size() <= 500
 
-        // Cart limits
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
         && request.resource.data.items.size() <= 50
 
-        // Shipping info
         && request.resource.data.shippingInfo is map
         && request.resource.data.shippingInfo.keys().hasOnly([
           "fullName",
@@ -221,7 +213,6 @@ service cloud.firestore {
         && request.resource.data.shippingInfo.postalCode.size() > 0
         && request.resource.data.shippingInfo.postalCode.size() <= 20
 
-        // Amounts
         && request.resource.data.productSubtotal is number
         && request.resource.data.productSubtotal > 0
         && request.resource.data.productSubtotal <= 10000000
@@ -230,28 +221,23 @@ service cloud.firestore {
         && request.resource.data.total > 0
         && request.resource.data.total == request.resource.data.productSubtotal
 
-        // Delivery fee must be admin-confirmed later, not customer-created
         && request.resource.data.deliveryFee == null
         && request.resource.data.finalTotal == null
 
-        // Payment and status
         && request.resource.data.paymentMethod == "Cash on Delivery"
         && request.resource.data.deliveryNote is string
         && request.resource.data.deliveryNote.size() > 0
         && request.resource.data.deliveryNote.size() <= 300
 
-        // Customers may only create new orders as Pending.
-        // They must not create Delivered, Cancelled, Processing, or Shipped orders.
         && request.resource.data.status in ["Pending", "pending"]
 
-        // Timestamps
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
 
       allow read: if isAuthenticated()
         && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid
+          isAdmin()
+          || resource.data.userId == request.auth.uid
         );
 
       allow update: if isAdmin()
@@ -309,19 +295,20 @@ service cloud.firestore {
 
       allow read: if isAuthenticated()
         && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid
+          isAdmin()
+          || resource.data.userId == request.auth.uid
         );
 
       allow update: if isAdmin()
-  || (
-    resource.data.userId == request.auth.uid
-    && resource.data.status == "pending"
-    && request.resource.data.userId == resource.data.userId
-    && request.resource.data.status == "cancelled"
-    && request.resource.data.diff(resource.data).affectedKeys()
-      .hasOnly(["status", "updatedAt"])
-  );
+        || (
+          resource.data.userId == request.auth.uid
+          && resource.data.status == "pending"
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.status == "cancelled"
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "updatedAt"])
+        );
 
       allow delete: if false;
     }
@@ -397,8 +384,8 @@ service cloud.firestore {
 
       allow read: if isAuthenticated()
         && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid
+          isAdmin()
+          || resource.data.userId == request.auth.uid
         );
 
       allow update: if isAdmin()
@@ -408,7 +395,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-        match /reviews/{reviewId} {
+    match /reviews/{reviewId} {
       allow create: if request.resource.data.keys().hasOnly([
           "displayName",
           "isAnonymous",
@@ -475,21 +462,21 @@ service cloud.firestore {
       allow create: if isAuthenticated()
         && isValidNotificationPayload()
         && (
-          isAdmin() ||
-          isValidSelfNotification() ||
-          isValidAdminNotificationTarget()
+          isAdmin()
+          || isValidSelfNotification()
+          || isValidAdminNotificationTarget()
         );
 
       allow read: if isAuthenticated()
         && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid
+          isAdmin()
+          || resource.data.userId == request.auth.uid
         );
 
       allow update: if isAuthenticated()
         && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid
+          isAdmin()
+          || resource.data.userId == request.auth.uid
         )
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(["read", "updatedAt"]);
