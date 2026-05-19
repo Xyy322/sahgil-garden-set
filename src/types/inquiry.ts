@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+
 
 export interface Message {
   content: string;

@@ -55,28 +55,30 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-      allow create: if isAuthenticated()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == "pending"
-        && request.resource.data.date is string
-        && request.resource.data.time is string;
+  allow create: if isAuthenticated()
+    && request.resource.data.userId == request.auth.uid
+    && request.resource.data.status == "pending"
+    && request.resource.data.date is string
+    && request.resource.data.time is string;
 
-      allow read: if isAuthenticated()
-        && (
-          isAdmin() ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.status == "approved"
-        );
+  allow read: if isAuthenticated()
+    && (
+      isAdmin() ||
+      resource.data.userId == request.auth.uid ||
+      resource.data.status == "approved"
+    );
 
-      allow update: if isAdmin()
-        || (
-          resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.status == "cancelled"
-        );
+  allow update: if isAdmin()
+    || (
+      resource.data.userId == request.auth.uid
+      && request.resource.data.userId == resource.data.userId
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(["status", "updatedAt"])
+    );
 
-      allow delete: if false;
-    }
+  allow delete: if false;
+}
 
     match /appointmentLocks/{lockId} {
       allow read: if isAuthenticated();
@@ -104,19 +106,6 @@ service cloud.firestore {
     isAuthenticated()
     && request.resource.data.userId == request.auth.uid
     && request.resource.data.customerType == "registered"
-    && request.resource.data.status == "pending"
-    && request.resource.data.adminRead == false
-    && request.resource.data.adminReadAt == null
-    && request.resource.data.fullName is string
-    && request.resource.data.email is string
-    && request.resource.data.message is string
-    && request.resource.data.message.size() > 0
-    && request.resource.data.message.size() <= 2000
-  ) || (
-    !isAuthenticated()
-    && request.resource.data.userId == ""
-    && request.resource.data.customerType == "guest"
-    && request.resource.data.status == "pending"
     && request.resource.data.adminRead == false
     && request.resource.data.adminReadAt == null
     && request.resource.data.fullName is string
@@ -126,6 +115,23 @@ service cloud.firestore {
     && request.resource.data.message is string
     && request.resource.data.fullName.size() > 1
     && request.resource.data.email.size() > 3
+    && request.resource.data.phone.size() > 0
+    && request.resource.data.message.size() > 0
+    && request.resource.data.message.size() <= 2000
+  ) || (
+    !isAuthenticated()
+    && request.resource.data.userId == ""
+    && request.resource.data.customerType == "guest"
+    && request.resource.data.adminRead == false
+    && request.resource.data.adminReadAt == null
+    && request.resource.data.fullName is string
+    && request.resource.data.email is string
+    && request.resource.data.phone is string
+    && request.resource.data.inquiryType is string
+    && request.resource.data.message is string
+    && request.resource.data.fullName.size() > 1
+    && request.resource.data.email.size() > 3
+    && request.resource.data.phone.size() > 0
     && request.resource.data.message.size() > 0
     && request.resource.data.message.size() <= 2000
   );
