@@ -3,7 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { updateProfile } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { ArrowLeft, MapPin, Phone, Save, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  AtSign,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  Save,
+  UserRound,
+} from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import { useAuth } from "../context/AuthContext";
@@ -34,7 +43,7 @@ export function ProfileEdit() {
 
     setFormData({
       name: profile?.fullName || user.displayName || "",
-      username: (profile as any)?.username || "",
+      username: profile?.username || "",
       address: profile?.address || "",
     });
 
@@ -61,6 +70,11 @@ export function ProfileEdit() {
 
     if (!cleanName) {
       setError("Please enter your full name.");
+      return;
+    }
+
+    if (cleanUsername.length > 40) {
+      setError("Username must not exceed 40 characters.");
       return;
     }
 
@@ -135,6 +149,8 @@ export function ProfileEdit() {
     );
   }
 
+  const displayEmail = user.email || profile?.email || "No email available";
+
   return (
     <div className="page-fade-in min-h-screen bg-[#f9f7f4] px-4 py-10 md:py-14">
       <div className="mx-auto w-full max-w-2xl">
@@ -158,9 +174,11 @@ export function ProfileEdit() {
                 <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
                   Customer Profile
                 </p>
+
                 <CardTitle className="mt-1 text-2xl font-bold text-stone-900">
                   Edit Profile
                 </CardTitle>
+
                 <p className="mt-1 text-sm text-stone-500">
                   Update your personal information and delivery details.
                 </p>
@@ -171,15 +189,40 @@ export function ProfileEdit() {
           <CardContent className="p-6 md:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-stone-800">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <Mail className="h-4 w-4 text-emerald-700" />
+                  Email Address
+                </label>
+
+                <div className="relative">
+                  <Input
+                    value={displayEmail}
+                    disabled
+                    readOnly
+                    className="h-12 rounded-xl bg-stone-100 pr-11 text-stone-600"
+                  />
+
+                  <Lock className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                </div>
+
+                <p className="mt-2 text-xs leading-relaxed text-stone-500">
+                  Email cannot be changed here for account security. It is
+                  connected to your login account.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <UserRound className="h-4 w-4 text-emerald-700" />
                   Full Name
                 </label>
+
                 <Input
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  placeholder="Full Name"
+                  placeholder="Enter your full name"
                   autoComplete="name"
                   required
                   className="h-12 rounded-xl"
@@ -187,18 +230,26 @@ export function ProfileEdit() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-stone-800">
-                  Email
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <AtSign className="h-4 w-4 text-emerald-700" />
+                  Username
                 </label>
+
                 <Input
                   value={formData.username}
                   onChange={(e) =>
                     setFormData({ ...formData, username: e.target.value })
                   }
-                  placeholder="Username"
+                  placeholder="Enter your username"
                   autoComplete="username"
+                  maxLength={40}
                   className="h-12 rounded-xl"
                 />
+
+                <p className="mt-2 text-xs text-stone-500">
+                  This is optional and can be used as your display name inside
+                  the system.
+                </p>
               </div>
 
               <div>
@@ -206,6 +257,7 @@ export function ProfileEdit() {
                   <Phone className="h-4 w-4 text-emerald-700" />
                   Phone Number
                 </label>
+
                 <Input
                   value={phone.value}
                   onChange={(e) => phone.onChange(e.target.value)}
@@ -228,13 +280,14 @@ export function ProfileEdit() {
                   <MapPin className="h-4 w-4 text-emerald-700" />
                   Address
                 </label>
+
                 <textarea
                   value={formData.address}
                   onChange={(e) =>
                     setFormData({ ...formData, address: e.target.value })
                   }
                   className="min-h-[110px] w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  placeholder="Address"
+                  placeholder="Enter your complete address"
                   autoComplete="street-address"
                   required
                 />

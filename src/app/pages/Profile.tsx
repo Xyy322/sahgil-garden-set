@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import {
   ArrowLeft,
+  AtSign,
   Edit3,
   Mail,
   MapPin,
@@ -18,6 +19,7 @@ interface ProfileData {
   uid?: string;
   email?: string;
   fullName?: string;
+  username?: string;
   phoneNumber?: string;
   address?: string;
   role?: string;
@@ -93,6 +95,7 @@ export function Profile() {
             typeof data.fullName === "string"
               ? data.fullName
               : user.displayName || "",
+          username: typeof data.username === "string" ? data.username : "",
           phoneNumber:
             typeof data.phoneNumber === "string" ? data.phoneNumber : "",
           address: typeof data.address === "string" ? data.address : "",
@@ -142,6 +145,7 @@ export function Profile() {
   }
 
   const displayName = profileData?.fullName || user.displayName || "Not set";
+  const displayUsername = profileData?.username || "Not set";
   const displayEmail = profileData?.email || user.email || "Not set";
   const displayPhone = profileData?.phoneNumber || "Not set";
   const displayAddress = profileData?.address || "Not set";
@@ -170,9 +174,11 @@ export function Profile() {
                   <p className="text-sm font-semibold uppercase tracking-wide text-emerald-100">
                     Customer Profile
                   </p>
+
                   <h1 className="mt-1 text-2xl font-bold md:text-3xl">
                     My Profile
                   </h1>
+
                   <p className="mt-1 text-sm text-emerald-50">
                     View and manage your account information.
                   </p>
@@ -199,9 +205,16 @@ export function Profile() {
               />
 
               <ProfileField
+                icon={<AtSign className="h-4 w-4" />}
+                label="Username"
+                value={displayUsername}
+              />
+
+              <ProfileField
                 icon={<Mail className="h-4 w-4" />}
                 label="Email"
                 value={displayEmail}
+                wide
               />
 
               <ProfileField
