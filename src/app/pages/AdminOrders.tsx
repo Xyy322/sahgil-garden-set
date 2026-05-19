@@ -236,6 +236,24 @@ function getFinalTotalLabel(order: OrderData): string {
   return "To be confirmed";
 }
 
+function getFinalTotalAmount(order: OrderData): number | null {
+  if (
+    typeof order.finalTotal === "number" &&
+    Number.isFinite(order.finalTotal)
+  ) {
+    return order.finalTotal;
+  }
+
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return getProductSubtotal(order) + order.deliveryFee;
+  }
+
+  return null;
+}
+
 function getDeliveryAddress(order: OrderData): string {
   if (order.shippingInfo?.address) {
     return `${order.shippingInfo.address}, ${order.shippingInfo.city || ""} ${
@@ -383,6 +401,9 @@ total: Number(data.productSubtotal ?? data.total) || 0,
         shippingText,
         itemText,
         formatMoney(getProductSubtotal(order)),
+getFinalTotalAmount(order) !== null
+  ? formatMoney(getFinalTotalAmount(order))
+  : "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -684,10 +705,12 @@ of {filteredOrders.length} filtered order
                     </p>
 
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {order.items?.length || 0} item
-                      {(order.items?.length || 0) === 1 ? "" : "s"} •{" "}
-                      {formatMoney(getProductSubtotal(order))}
-                    </p>
+  {order.items?.length || 0} item
+  {(order.items?.length || 0) === 1 ? "" : "s"} •{" "}
+  {getFinalTotalAmount(order) !== null
+    ? `${formatMoney(getFinalTotalAmount(order))} final total`
+    : `${formatMoney(getProductSubtotal(order))} product subtotal`}
+</p>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -842,21 +865,20 @@ of {filteredOrders.length} filtered order
                     value={selectedLiveOrder.paymentMethod || "N/A"}
                   />
                                     <InfoRow
-                    label="Product Subtotal"
-                    value={formatMoney(getProductSubtotal(selectedLiveOrder))}
-                    strong
-                  />
+  label="Product Subtotal"
+  value={formatMoney(getProductSubtotal(selectedLiveOrder))}
+/>
 
-                  <InfoRow
-                    label="Delivery Fee"
-                    value={getDeliveryFeeLabel(selectedLiveOrder)}
-                  />
+<InfoRow
+  label="Delivery Fee"
+  value={getDeliveryFeeLabel(selectedLiveOrder)}
+/>
 
-                  <InfoRow
-                    label="Final Total"
-                    value={getFinalTotalLabel(selectedLiveOrder)}
-                    strong
-                  />
+<InfoRow
+  label="Final Total"
+  value={getFinalTotalLabel(selectedLiveOrder)}
+  strong
+/>
                 </InfoBox>
 
                                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 lg:col-span-3">
@@ -926,11 +948,17 @@ of {filteredOrders.length} filtered order
                 </div>
 
               </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
-  Delivery fee is not automatically computed because it depends on the
-  customer’s location. The displayed amount is the product subtotal only until
-  the admin confirms the delivery fee.
-</div>
+                    {getFinalTotalAmount(selectedLiveOrder) === null ? (
+  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
+    Delivery fee is not yet confirmed. Enter the delivery fee based on the
+    customer&apos;s location to compute the final total.
+  </div>
+) : (
+  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-800">
+    Delivery fee has been confirmed. The final total now includes the product
+    subtotal and delivery fee.
+  </div>
+)}
               {Array.isArray(selectedLiveOrder.items) &&
                 selectedLiveOrder.items.length > 0 && (
                   <div>

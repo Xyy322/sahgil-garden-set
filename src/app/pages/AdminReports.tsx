@@ -98,6 +98,28 @@ function getProductSubtotal(order: ReportOrder): number {
   return Number(order.productSubtotal ?? order.total) || 0;
 }
 
+function getDeliveryFee(order: ReportOrder): number {
+  if (
+    typeof order.deliveryFee === "number" &&
+    Number.isFinite(order.deliveryFee)
+  ) {
+    return order.deliveryFee;
+  }
+
+  return 0;
+}
+
+function getFinalTotal(order: ReportOrder): number {
+  if (
+    typeof order.finalTotal === "number" &&
+    Number.isFinite(order.finalTotal)
+  ) {
+    return order.finalTotal;
+  }
+
+  return getProductSubtotal(order) + getDeliveryFee(order);
+}
+
 function formatDateInput(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -294,6 +316,22 @@ export function AdminReports() {
       .filter((order) => order.status !== "Cancelled")
       .reduce((sum, order) => sum + getProductSubtotal(order), 0);
 
+    const dailyDeliveryFees = dailyOrders
+  .filter((order) => order.status !== "Cancelled")
+  .reduce((sum, order) => sum + getDeliveryFee(order), 0);
+
+const monthlyDeliveryFees = monthlyOrders
+  .filter((order) => order.status !== "Cancelled")
+  .reduce((sum, order) => sum + getDeliveryFee(order), 0);
+
+const dailyFinalOrderTotal = dailyOrders
+  .filter((order) => order.status !== "Cancelled")
+  .reduce((sum, order) => sum + getFinalTotal(order), 0);
+
+const monthlyFinalOrderTotal = monthlyOrders
+  .filter((order) => order.status !== "Cancelled")
+  .reduce((sum, order) => sum + getFinalTotal(order), 0);
+
     const countOrdersByStatus = (list: ReportOrder[], status: OrderStatus) =>
       list.filter((order) => order.status === status).length;
 
@@ -309,7 +347,11 @@ export function AdminReports() {
       monthlyAppointments,
 
       dailyProductSales,
-      monthlyProductSales,
+monthlyProductSales,
+dailyDeliveryFees,
+monthlyDeliveryFees,
+dailyFinalOrderTotal,
+monthlyFinalOrderTotal,
 
       dailyPendingOrders: countOrdersByStatus(dailyOrders, "Pending"),
       dailyDeliveredOrders: countOrdersByStatus(dailyOrders, "Delivered"),
@@ -428,10 +470,12 @@ export function AdminReports() {
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
-        Product sales are based on product subtotals only and do not include
-        delivery fees. Delivery fees are confirmed separately by the admin based
-        on the customer&apos;s location.
-      </div>
+  Product Sales are based on product subtotals only. Delivery fees are not
+  included in product sales because they are treated as delivery-related charges
+  for logistics expenses such as transportation, fuel, and labor. The customer
+  final total may include a delivery fee, but sales reports focus only on actual
+  product sales.
+</div>
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">
@@ -470,6 +514,9 @@ export function AdminReports() {
           rows={[
             ["Pending Orders", reportData.dailyPendingOrders],
             ["Delivered Orders", reportData.dailyDeliveredOrders],
+            ["Product Sales", formatMoney(reportData.dailyProductSales)],
+            ["Confirmed Delivery Fees", formatMoney(reportData.dailyDeliveryFees)],
+            ["Final Order Total", formatMoney(reportData.dailyFinalOrderTotal)],
             ["Pending Appointments", reportData.dailyPendingAppointments],
             ["Approved Appointments", reportData.dailyApprovedAppointments],
             ["Rejected Appointments", reportData.dailyRejectedAppointments],
@@ -514,6 +561,9 @@ export function AdminReports() {
           rows={[
             ["Pending Orders", reportData.monthlyPendingOrders],
             ["Delivered Orders", reportData.monthlyDeliveredOrders],
+            ["Product Sales", formatMoney(reportData.monthlyProductSales)],
+            ["Confirmed Delivery Fees", formatMoney(reportData.monthlyDeliveryFees)],
+            ["Final Order Total", formatMoney(reportData.monthlyFinalOrderTotal)],
             ["Pending Appointments", reportData.monthlyPendingAppointments],
             ["Approved Appointments", reportData.monthlyApprovedAppointments],
             ["Rejected Appointments", reportData.monthlyRejectedAppointments],
