@@ -1,5 +1,3 @@
-import { addDays } from "date-fns";
-
 /**
  * Appointment interface
  */
@@ -37,6 +35,22 @@ export const TIME_SLOTS = [
 ];
 
 /**
+ * ONLINE BOOKING DAYS
+ *
+ * JavaScript day numbers:
+ * 0 = Sunday
+ * 1 = Monday
+ * 2 = Tuesday
+ * 3 = Wednesday
+ * 4 = Thursday
+ * 5 = Friday
+ * 6 = Saturday
+ */
+export const ALLOWED_BOOKING_DAY_NUMBERS = [1, 3, 5];
+
+export const ALLOWED_BOOKING_DAYS_LABEL = "Monday, Wednesday, and Friday";
+
+/**
  * FORMAT DATE → YYYY-MM-DD (LOCAL SAFE)
  */
 export function formatDateKey(date: Date): string {
@@ -62,17 +76,42 @@ export function parseDateKey(dateStr: string): Date {
 }
 
 /**
- * BLOCKED DATES (selected day + next 2 days)
+ * CHECK IF DATE IS TODAY OR PAST
+ *
+ * Today is intentionally treated as unavailable to give the admin time
+ * to review appointment requests.
+ */
+export function isTodayOrPast(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const compare = new Date(date);
+  compare.setHours(0, 0, 0, 0);
+
+  return compare <= today;
+}
+
+/**
+ * CHECK IF DATE IS AN ALLOWED ONLINE BOOKING DAY
+ */
+export function isAllowedBookingDay(date: Date): boolean {
+  return ALLOWED_BOOKING_DAY_NUMBERS.includes(date.getDay());
+}
+
+/**
+ * BLOCKED DATES
+ *
+ * New business rule:
+ * Only the selected appointment date is locked.
+ * Tuesday, Thursday, Saturday, and Sunday are disabled by weekday rule,
+ * not by creating permanent Firestore lock records.
  */
 export function getBlockedDates(baseDate: Date): string[] {
-  const blocked: string[] = [];
-
-  for (let i = 0; i <= 2; i++) {
-    const d = addDays(baseDate, i);
-    blocked.push(formatDateKey(d));
+  if (Number.isNaN(baseDate.getTime())) {
+    return [];
   }
 
-  return blocked;
+  return [formatDateKey(baseDate)];
 }
 
 /**
@@ -90,13 +129,20 @@ export function getAllBlockedDates(appointments: Appointment[]): string[] {
       );
     })
     .forEach((a) => {
+      if (Array.isArray(a.lockDates) && a.lockDates.length > 0) {
+        a.lockDates
+          .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+          .forEach((date) => blocked.add(date));
+        return;
+      }
+
       const base = parseDateKey(a.date);
 
       if (Number.isNaN(base.getTime())) {
         return;
       }
 
-      getBlockedDates(base).forEach((d) => blocked.add(d));
+      getBlockedDates(base).forEach((date) => blocked.add(date));
     });
 
   return Array.from(blocked);
@@ -106,15 +152,17 @@ export function getAllBlockedDates(appointments: Appointment[]): string[] {
  * DATE AVAILABILITY CHECK
  */
 export function isDateAvailable(date: Date, blockedDates: string[]): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const dateKey = formatDateKey(date);
 
-  const compare = new Date(date);
-  compare.setHours(0, 0, 0, 0);
+  if (isTodayOrPast(date)) {
+    return false;
+  }
 
-  if (compare < today) return false;
+  if (!isAllowedBookingDay(date)) {
+    return false;
+  }
 
-  return !blockedDates.includes(formatDateKey(date));
+  return !blockedDates.includes(dateKey);
 }
 
 /**
@@ -146,27 +194,32 @@ export function validateAppointment(
 ): { valid: boolean; message: string } {
   const dateStr = formatDateKey(date);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  if (isTodayOrPast(date)) {
+    return {
+      valid: false,
+      message:
+        "Same-day appointment booking is not allowed. Please choose a future available schedule.",
+    };
+  }
 
-  const compare = new Date(date);
-  compare.setHours(0, 0, 0, 0);
-
-  if (compare < today) {
-    return { valid: false, message: "Cannot book past dates" };
+  if (!isAllowedBookingDay(date)) {
+    return {
+      valid: false,
+      message: `Online booking is only available every ${ALLOWED_BOOKING_DAYS_LABEL}. For urgent or same-day consultations, please contact the admin directly.`,
+    };
   }
 
   if (blockedDates.includes(dateStr)) {
     return {
       valid: false,
-      message: "This date is unavailable",
+      message: "This date is already reserved. Please choose another date.",
     };
   }
 
   if (!isTimeSlotAvailable(date, time, appointments)) {
     return {
       valid: false,
-      message: "This time slot is already booked",
+      message: "This time slot is already booked.",
     };
   }
 
@@ -207,15 +260,17 @@ export function formatDisplayDate(dateStr: string): string {
 /**
  * SORT HELPERS
  */
-export function compareAppointmentsByDate(
-  a: Appointment,
-  b: Appointment
-) {
+export function compareAppointmentsByDate(a: Appointment, b: Appointment) {
   const aDate = parseDateKey(a.date);
   const bDate = parseDateKey(b.date);
 
-  const aTime = Number.isNaN(aDate.getTime()) ? Number.MAX_SAFE_INTEGER : aDate.getTime();
-  const bTime = Number.isNaN(bDate.getTime()) ? Number.MAX_SAFE_INTEGER : bDate.getTime();
+  const aTime = Number.isNaN(aDate.getTime())
+    ? Number.MAX_SAFE_INTEGER
+    : aDate.getTime();
+
+  const bTime = Number.isNaN(bDate.getTime())
+    ? Number.MAX_SAFE_INTEGER
+    : bDate.getTime();
 
   const diff = aTime - bTime;
 
