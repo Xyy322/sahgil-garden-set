@@ -27,7 +27,18 @@ service cloud.firestore {
         "Processing", "processing",
         "Shipped", "shipped",
         "Delivered", "delivered",
-        "Cancelled", "cancelled", "Canceled", "canceled"
+        "Cancelled", "cancelled",
+        "Canceled", "canceled"
+      ];
+    }
+
+    function isValidAppointmentStatus(status) {
+      return status in [
+        "pending",
+        "approved",
+        "rejected",
+        "completed",
+        "cancelled"
       ];
     }
 
@@ -61,12 +72,67 @@ service cloud.firestore {
         && request.resource.data.message.size() <= 500
         && isValidNotificationType(request.resource.data.type)
         && request.resource.data.statusRefId is string
+        && request.resource.data.statusRefId.size() > 0
         && request.resource.data.relatedId is string
+        && request.resource.data.relatedId == request.resource.data.statusRefId
         && request.resource.data.relatedCollection is string
         && isValidRelatedCollection(request.resource.data.relatedCollection)
         && request.resource.data.read == false
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isAdminNotificationForOwnedOrder() {
+      return request.resource.data.userId == "admin"
+        && request.resource.data.type == "order"
+        && request.resource.data.relatedCollection == "orders"
+        && exists(/databases/$(database)/documents/orders/$(request.resource.data.statusRefId))
+        && get(/databases/$(database)/documents/orders/$(request.resource.data.statusRefId)).data.userId == request.auth.uid;
+    }
+
+    function isAdminNotificationForOwnedAppointment() {
+      return request.resource.data.userId == "admin"
+        && request.resource.data.type == "appointment"
+        && request.resource.data.relatedCollection == "appointments"
+        && exists(/databases/$(database)/documents/appointments/$(request.resource.data.statusRefId))
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.statusRefId)).data.userId == request.auth.uid;
+    }
+
+    function isAdminNotificationForOwnedInquiry() {
+      return request.resource.data.userId == "admin"
+        && request.resource.data.type == "inquiry"
+        && request.resource.data.relatedCollection == "inquiries"
+        && exists(/databases/$(database)/documents/inquiries/$(request.resource.data.statusRefId))
+        && get(/databases/$(database)/documents/inquiries/$(request.resource.data.statusRefId)).data.userId == request.auth.uid;
+    }
+
+    function isValidSelfNotification() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
+    function isValidAdminNotificationTarget() {
+      return isAdminNotificationForOwnedOrder()
+        || isAdminNotificationForOwnedAppointment()
+        || isAdminNotificationForOwnedInquiry();
+    }
+
+    function isOptionalValidDeliveryFee() {
+      return !("deliveryFee" in request.resource.data)
+        || request.resource.data.deliveryFee == null
+        || (
+          request.resource.data.deliveryFee is number
+          && request.resource.data.deliveryFee >= 0
+          && request.resource.data.deliveryFee <= 100000
+        );
+    }
+
+    function isOptionalValidFinalTotal() {
+      return !("finalTotal" in request.resource.data)
+        || request.resource.data.finalTotal == null
+        || (
+          request.resource.data.finalTotal is number
+          && request.resource.data.finalTotal >= 0
+        );
     }
 
     match /users/{userId} {
@@ -139,23 +205,63 @@ service cloud.firestore {
           resource.data.userId == request.auth.uid
         );
 
-      allow update: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["status", "updatedAt", "deliveryFee", "finalTotal"])
+        && isValidOrderStatus(request.resource.data.status)
+        && request.resource.data.updatedAt is timestamp
+        && isOptionalValidDeliveryFee()
+        && isOptionalValidFinalTotal();
 
       allow delete: if false;
     }
 
     match /appointments/{appointmentId} {
       allow create: if isAuthenticated()
+        && request.resource.data.keys().hasOnly([
+          "userId",
+          "customerName",
+          "customerEmail",
+          "customerPhone",
+          "customerAddress",
+          "address",
+          "date",
+          "time",
+          "serviceType",
+          "description",
+          "status",
+          "lockDates",
+          "createdAt",
+          "updatedAt"
+        ])
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == "pending"
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() > 1
+        && request.resource.data.customerEmail is string
+        && request.resource.data.customerPhone is string
+        && request.resource.data.customerPhone.size() > 0
+        && request.resource.data.customerAddress is string
+        && request.resource.data.customerAddress.size() > 5
+        && request.resource.data.address is string
+        && request.resource.data.address.size() > 5
         && request.resource.data.date is string
-        && request.resource.data.time is string;
+        && request.resource.data.date.size() == 10
+        && request.resource.data.time is string
+        && request.resource.data.time.size() == 5
+        && request.resource.data.serviceType == "landscaping-consultation"
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.status == "pending"
+        && request.resource.data.lockDates is list
+        && request.resource.data.lockDates.size() == 1
+        && request.resource.data.lockDates[0] == request.resource.data.date
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
 
       allow read: if isAuthenticated()
         && (
           isAdmin() ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.status == "approved"
+          resource.data.userId == request.auth.uid
         );
 
       allow update: if isAdmin()
@@ -176,9 +282,22 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (
           isAuthenticated()
+          && !exists(/databases/$(database)/documents/appointmentLocks/$(lockId))
+          && request.resource.data.keys().hasOnly([
+            "date",
+            "appointmentId",
+            "userId",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ])
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.date == lockId
+          && request.resource.data.appointmentId is string
+          && request.resource.data.appointmentId.size() > 0
           && request.resource.data.status == "pending"
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp
         );
 
       allow update: if isAdmin();
@@ -244,8 +363,8 @@ service cloud.firestore {
         && isValidNotificationPayload()
         && (
           isAdmin() ||
-          request.resource.data.userId == request.auth.uid ||
-          request.resource.data.userId == "admin"
+          isValidSelfNotification() ||
+          isValidAdminNotificationTarget()
         );
 
       allow read: if isAuthenticated()
