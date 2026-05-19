@@ -153,7 +153,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    match /orders/{orderId} {
+        match /orders/{orderId} {
       allow create: if isAuthenticated()
         && request.resource.data.keys().hasOnly([
           "userId",
@@ -174,28 +174,85 @@ service cloud.firestore {
           "createdAt",
           "updatedAt"
         ])
+
+        // Ownership
         && request.resource.data.userId == request.auth.uid
+
+        // Order identity
         && request.resource.data.orderNumber is string
+        && request.resource.data.orderNumber.size() >= 5
+        && request.resource.data.orderNumber.size() <= 40
+
+        // Customer details
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 1
+        && request.resource.data.customerName.size() <= 120
+
         && request.resource.data.customerEmail is string
+        && request.resource.data.customerEmail == request.auth.token.email
+
         && request.resource.data.customerPhone is string
         && request.resource.data.customerPhone.size() > 0
+        && request.resource.data.customerPhone.size() <= 30
+
         && request.resource.data.address is string
         && request.resource.data.address.size() > 5
+        && request.resource.data.address.size() <= 500
+
+        // Cart limits
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
         && request.resource.data.items.size() <= 50
+
+        // Shipping info
         && request.resource.data.shippingInfo is map
+        && request.resource.data.shippingInfo.keys().hasOnly([
+          "fullName",
+          "phone",
+          "address",
+          "city",
+          "postalCode"
+        ])
+        && request.resource.data.shippingInfo.fullName is string
+        && request.resource.data.shippingInfo.fullName.size() > 1
+        && request.resource.data.shippingInfo.fullName.size() <= 120
+        && request.resource.data.shippingInfo.phone is string
+        && request.resource.data.shippingInfo.phone.size() > 0
+        && request.resource.data.shippingInfo.phone.size() <= 30
+        && request.resource.data.shippingInfo.address is string
+        && request.resource.data.shippingInfo.address.size() > 5
+        && request.resource.data.shippingInfo.address.size() <= 300
+        && request.resource.data.shippingInfo.city is string
+        && request.resource.data.shippingInfo.city.size() > 0
+        && request.resource.data.shippingInfo.city.size() <= 120
+        && request.resource.data.shippingInfo.postalCode is string
+        && request.resource.data.shippingInfo.postalCode.size() > 0
+        && request.resource.data.shippingInfo.postalCode.size() <= 20
+
+        // Amounts
         && request.resource.data.productSubtotal is number
         && request.resource.data.productSubtotal > 0
+        && request.resource.data.productSubtotal <= 10000000
+
         && request.resource.data.total is number
+        && request.resource.data.total > 0
         && request.resource.data.total == request.resource.data.productSubtotal
+
+        // Delivery fee must be admin-confirmed later, not customer-created
         && request.resource.data.deliveryFee == null
         && request.resource.data.finalTotal == null
-        && request.resource.data.paymentMethod is string
+
+        // Payment and status
+        && request.resource.data.paymentMethod == "Cash on Delivery"
         && request.resource.data.deliveryNote is string
-        && isValidOrderStatus(request.resource.data.status)
+        && request.resource.data.deliveryNote.size() > 0
+        && request.resource.data.deliveryNote.size() <= 300
+
+        // Customers may only create new orders as Pending.
+        // They must not create Delivered, Cancelled, Processing, or Shipped orders.
+        && request.resource.data.status in ["Pending", "pending"]
+
+        // Timestamps
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
 
