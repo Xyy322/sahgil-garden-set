@@ -19,6 +19,7 @@ import { Profile } from "./pages/Profile";
 import { ProfileEdit } from "./pages/ProfileEdit";
 import { AdminReports } from "./pages/AdminReports";
 import { AdminUsers } from "./pages/AdminUsers";
+import { AdminReviews } from "./pages/AdminReviews";
 import {
   RoleProtectedRoute,
   PublicOnlyRoute,
@@ -122,14 +123,15 @@ export const router = createBrowserRouter([
         </RoleProtectedRoute>
       ),
       children: [
-        { index: true, element: <AdminDashboard /> },
-        { path: "products", element: <AdminProducts /> },
-        { path: "orders", element: <AdminOrders /> },
-        { path: "appointments", element: <AdminAppointments /> },
-        { path: "inquiries", element: <AdminInquiries /> },
-        { path: "reports", element: <AdminReports /> },
-        { path: "users", element: <AdminUsers /> },
-      ],
+  { index: true, element: <AdminDashboard /> },
+  { path: "products", element: <AdminProducts /> },
+  { path: "orders", element: <AdminOrders /> },
+  { path: "appointments", element: <AdminAppointments /> },
+  { path: "inquiries", element: <AdminInquiries /> },
+  { path: "reviews", element: <AdminReviews /> },
+  { path: "reports", element: <AdminReports /> },
+  { path: "users", element: <AdminUsers /> },
+],
     },
 
     { path: "*", element: <NotFound /> },

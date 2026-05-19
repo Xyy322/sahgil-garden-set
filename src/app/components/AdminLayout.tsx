@@ -11,6 +11,7 @@ import {
   Menu,
   BarChart3,
   UsersRound,
+  Star,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
@@ -77,6 +78,11 @@ export function AdminLayout() {
       path: "/dashboard/admin/inquiries",
       label: "Inquiries",
       icon: MessageSquare,
+    },
+    {
+      path: "/dashboard/admin/reviews",
+      label: "Reviews",
+      icon: Star,
     },
     {
       path: "/dashboard/admin/reports",
