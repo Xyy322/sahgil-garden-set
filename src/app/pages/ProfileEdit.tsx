@@ -188,7 +188,7 @@ export function ProfileEdit() {
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-stone-800">
-                  E-mail
+                  Email
                 </label>
                 <Input
                   value={formData.username}
