@@ -316,7 +316,7 @@ toast.error("Failed to update inquiry", {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-fade-in space-y-6">
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Inquiry Management

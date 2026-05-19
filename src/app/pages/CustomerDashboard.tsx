@@ -584,7 +584,7 @@ toast.error("Failed to cancel appointment", {
   }
 
   return (
-    <div className="bg-[#f9f7f4] min-h-screen py-8 md:py-12 relative z-0">
+    <div className="page-fade-in bg-[#f9f7f4] min-h-screen py-8 md:py-12 relative z-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 rounded-3xl border border-stone-100 bg-white p-5 shadow-sm md:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">

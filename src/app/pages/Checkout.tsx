@@ -355,7 +355,7 @@ export function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
       <div className="mx-auto max-w-6xl">
         <button
           type="button"

@@ -107,3 +107,29 @@
     @apply rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50 hover:text-stone-900;
   }
 }
+
+@layer utilities {
+  .page-fade-in {
+    animation: pageFadeIn 0.28s ease-out both;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  .button-press {
+    @apply active:scale-[0.98];
+  }
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

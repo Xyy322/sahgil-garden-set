@@ -172,7 +172,7 @@ export function Services() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f7f4]">
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4]">
       {loginPrompt && (
         <div className="fixed left-4 right-4 top-24 z-50 mx-auto flex max-w-xl flex-col gap-3 rounded-2xl bg-stone-900 px-5 py-4 text-white shadow-xl sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm font-medium">

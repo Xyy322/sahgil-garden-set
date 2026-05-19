@@ -420,7 +420,7 @@ toast.success("Product deleted", {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-fade-in space-y-8">
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>

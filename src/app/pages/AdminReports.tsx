@@ -375,7 +375,7 @@ export function AdminReports() {
   }
 
   return (
-    <div className="space-y-8 print:bg-white">
+    <div className="page-fade-in space-y-8 print:bg-white">
       <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm md:flex-row md:items-center md:justify-between print:border-none print:shadow-none">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
