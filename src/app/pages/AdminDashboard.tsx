@@ -509,82 +509,82 @@ const [inquiriesError, setInquiriesError] = useState("");
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 md:gap-6">
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
-            <Clock className="h-6 w-6" />
-          </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 md:gap-6">
+  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <Clock className="h-6 w-6" />
+    </div>
 
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Pending Orders
-            </p>
-            <h3 className="text-2xl font-bold text-card-foreground">
-              {pendingOrders}
-            </h3>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
-            <PackageSearch className="h-6 w-6" />
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Daily Current Orders
-            </p>
-            <h3 className="text-2xl font-bold text-card-foreground">
-              {dailyCurrentOrders}
-            </h3>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
-            <CalendarCheck className="h-6 w-6" />
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Pending Appointments
-            </p>
-            <h3 className="text-2xl font-bold text-card-foreground">
-              {pendingAppointments}
-            </h3>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
-            <CheckCircle className="h-6 w-6" />
-          </div>
-
-          <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary">
-    <MessageSquare className="h-6 w-6" />
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Pending Orders
+      </p>
+      <h3 className="text-2xl font-bold text-card-foreground">
+        {pendingOrders}
+      </h3>
+    </div>
   </div>
 
-  <div>
-    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      Unread Inquiries
-    </p>
-    <h3 className="text-2xl font-bold text-card-foreground">
-      {unreadInquiries}
-    </h3>
+  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <PackageSearch className="h-6 w-6" />
+    </div>
+
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Daily Current Orders
+      </p>
+      <h3 className="text-2xl font-bold text-card-foreground">
+        {dailyCurrentOrders}
+      </h3>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <CalendarCheck className="h-6 w-6" />
+    </div>
+
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Pending Appointments
+      </p>
+      <h3 className="text-2xl font-bold text-card-foreground">
+        {pendingAppointments}
+      </h3>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <CheckCircle className="h-6 w-6" />
+    </div>
+
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Active Appointments
+      </p>
+      <h3 className="text-2xl font-bold text-card-foreground">
+        {activeAppointments}
+      </h3>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <MessageSquare className="h-6 w-6" />
+    </div>
+
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Unread Inquiries
+      </p>
+      <h3 className="text-2xl font-bold text-card-foreground">
+        {unreadInquiries}
+      </h3>
+    </div>
   </div>
 </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Active Appointments
-            </p>
-            <h3 className="text-2xl font-bold text-card-foreground">
-              {activeAppointments}
-            </h3>
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
