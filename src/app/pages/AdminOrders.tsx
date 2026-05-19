@@ -254,6 +254,12 @@ export function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState<"All" | OrderStatus>("All");
 const [currentPage, setCurrentPage] = useState(1);
 const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+const [updatingDeliveryFeeId, setUpdatingDeliveryFeeId] = useState<
+  string | null
+>(null);
+const [deliveryFeeDrafts, setDeliveryFeeDrafts] = useState<
+  Record<string, string>
+>({});
 const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
 
   const { user, role, loading: authLoading } = useAuth();
@@ -447,21 +453,96 @@ useEffect(() => {
         });
       }
       toast.success("Order status updated", {
-  description: `Order is now ${newStatus}.`,
-});
-    } catch (err: unknown) {
+      description: `Order is now ${newStatus}.`,
+      });
+      } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to update status";
       setOrdersError(message);
 
-toast.error("Failed to update order", {
-  description: message,
-});
-    } finally {
+      toast.error("Failed to update order", {
+      description: message,
+      });
+       } finally {
       setUpdatingOrderId(null);
     }
   };
+  const updateDeliveryFee = async (orderId: string) => {
+    try {
+      const order = orders.find((item) => item.id === orderId);
 
+      if (!order) {
+        setOrdersError("Order not found.");
+        return;
+      }
+
+      const draftValue =
+        deliveryFeeDrafts[orderId] ??
+        (typeof order.deliveryFee === "number" ? String(order.deliveryFee) : "");
+
+      const deliveryFee = Number(draftValue);
+
+      if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
+        setOrdersError("Please enter a valid delivery fee.");
+        toast.error("Invalid delivery fee", {
+          description: "Delivery fee must be zero or greater.",
+        });
+        return;
+      }
+
+      if (deliveryFee > 100000) {
+        setOrdersError("Delivery fee is too high. Please check the amount.");
+        toast.error("Invalid delivery fee", {
+          description: "Please enter a realistic delivery fee amount.",
+        });
+        return;
+      }
+
+      const productSubtotal = getProductSubtotal(order);
+      const finalTotal = productSubtotal + deliveryFee;
+
+      setUpdatingDeliveryFeeId(orderId);
+      setOrdersError("");
+
+      await updateDoc(doc(db, "orders", orderId), {
+        deliveryFee,
+        finalTotal,
+        updatedAt: serverTimestamp(),
+      });
+
+      if (order.userId) {
+        await createNotification({
+          userId: order.userId,
+          title: "Delivery Fee Confirmed",
+          message: `Your delivery fee has been confirmed. Final total: ${formatMoney(
+            finalTotal
+          )}.`,
+          type: "order",
+          statusRefId: orderId,
+        });
+      }
+
+      setDeliveryFeeDrafts((prev) => ({
+        ...prev,
+        [orderId]: String(deliveryFee),
+      }));
+
+      toast.success("Delivery fee updated", {
+        description: `Final total is now ${formatMoney(finalTotal)}.`,
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update delivery fee.";
+
+      setOrdersError(message);
+
+      toast.error("Failed to update delivery fee", {
+        description: message,
+      });
+    } finally {
+      setUpdatingDeliveryFeeId(null);
+    }
+  };
   if (authLoading || loadingOrders) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
@@ -760,22 +841,89 @@ of {filteredOrders.length} filtered order
                     label="Method"
                     value={selectedLiveOrder.paymentMethod || "N/A"}
                   />
+                                    <InfoRow
+                    label="Product Subtotal"
+                    value={formatMoney(getProductSubtotal(selectedLiveOrder))}
+                    strong
+                  />
+
                   <InfoRow
-  label="Product Subtotal"
-  value={formatMoney(getProductSubtotal(selectedLiveOrder))}
-  strong
-/>
+                    label="Delivery Fee"
+                    value={getDeliveryFeeLabel(selectedLiveOrder)}
+                  />
 
-<InfoRow
-  label="Delivery Fee"
-  value={getDeliveryFeeLabel(selectedLiveOrder)}
-/>
-
-<InfoRow
-  label="Final Total"
-  value={getFinalTotalLabel(selectedLiveOrder)}
-/>
+                  <InfoRow
+                    label="Final Total"
+                    value={getFinalTotalLabel(selectedLiveOrder)}
+                    strong
+                  />
                 </InfoBox>
+
+                                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 lg:col-span-3">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-emerald-900">
+                        Confirm Delivery Fee
+                      </p>
+
+                      <p className="mt-1 text-xs leading-relaxed text-emerald-800">
+                        Enter the delivery fee based on the customer&apos;s
+                        location. The final total will be calculated
+                        automatically.
+                      </p>
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={
+                            deliveryFeeDrafts[selectedLiveOrder.id] ??
+                            (typeof selectedLiveOrder.deliveryFee === "number"
+                              ? String(selectedLiveOrder.deliveryFee)
+                              : "")
+                          }
+                          onChange={(event) =>
+                            setDeliveryFeeDrafts((prev) => ({
+                              ...prev,
+                              [selectedLiveOrder.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Enter delivery fee"
+                          className="h-11 rounded-xl border border-emerald-200 bg-white px-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        />
+
+                        <button
+                          type="button"
+                          disabled={updatingDeliveryFeeId === selectedLiveOrder.id}
+                          onClick={() => updateDeliveryFee(selectedLiveOrder.id)}
+                          className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {updatingDeliveryFeeId === selectedLiveOrder.id
+                            ? "Saving..."
+                            : "Save Fee"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-white p-4 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        Computed Final Total
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold text-emerald-700">
+                        {formatMoney(
+                          getProductSubtotal(selectedLiveOrder) +
+                            Number(
+                              deliveryFeeDrafts[selectedLiveOrder.id] ??
+                                selectedLiveOrder.deliveryFee ??
+                                0
+                            )
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
               </div>
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
