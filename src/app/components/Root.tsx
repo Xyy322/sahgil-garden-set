@@ -85,14 +85,20 @@ export function Root() {
     "User";
 
   const handleLogout = async () => {
+  try {
     await logout();
-
+  } finally {
     setIsMenuOpen(false);
+    setIsCartOpen(false);
     setIsProfileOpen(false);
     setIsLogoutDialogOpen(false);
 
-    navigate("/login", { replace: true });
-  };
+    navigate("/login", {
+      replace: true,
+      state: null,
+    });
+  }
+};
 
   const handleNavigate = (path: string) => {
     navigate(path);
