@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
-import { User, Mail, Phone, MapPin } from "lucide-react";
+import {
+  ArrowLeft,
+  Edit3,
+  Mail,
+  MapPin,
+  Phone,
+  UserRound,
+} from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
 
 interface ProfileData {
   uid?: string;
@@ -15,9 +23,38 @@ interface ProfileData {
   role?: string;
 }
 
+function ProfileField({
+  icon,
+  label,
+  value,
+  wide = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-stone-100 bg-stone-50 p-4 ${
+        wide ? "md:col-span-2" : ""
+      }`}
+    >
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+        {icon}
+        {label}
+      </div>
+
+      <p className="break-words text-base font-semibold text-stone-900 md:text-lg">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export function Profile() {
   const navigate = useNavigate();
-  const { user, role, loading, logout } = useAuth();
+  const { user, role, loading } = useAuth();
 
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -78,7 +115,7 @@ export function Profile() {
 
   if (loading || profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-stone-600">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] text-stone-600">
         Loading profile...
       </div>
     );
@@ -86,7 +123,7 @@ export function Profile() {
 
   if (!user || role !== "customer") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center bg-[#f9f7f4]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] p-6 text-center">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
           Only logged-in customers can view this profile.
         </div>
@@ -96,7 +133,7 @@ export function Profile() {
 
   if (profileError) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center bg-[#f9f7f4]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] p-6 text-center">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
           {profileError}
         </div>
@@ -109,82 +146,83 @@ export function Profile() {
   const displayPhone = profileData?.phoneNumber || "Not set";
   const displayAddress = profileData?.address || "Not set";
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login", { replace: true });
-  };
-
   return (
-    <div className="bg-[#f9f7f4] min-h-screen py-8 md:py-12">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 md:mb-12">
-          <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-5 md:mb-6 shadow-2xl">
-            <User className="w-10 h-10 md:w-12 md:h-12 text-white" />
-          </div>
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4] px-4 py-10 md:py-14">
+      <div className="mx-auto w-full max-w-3xl">
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard/customer")}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-stone-600 hover:text-emerald-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </button>
 
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-900 mb-1">
-            My Profile
-          </h1>
+        <div className="overflow-hidden rounded-3xl border border-stone-100 bg-white shadow-sm">
+          <div className="border-b border-stone-100 bg-gradient-to-br from-emerald-700 to-emerald-900 px-6 py-8 text-white md:px-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-white shadow-sm backdrop-blur">
+                  <UserRound className="h-8 w-8" />
+                </div>
 
-          <p className="text-stone-600 text-sm md:text-base">
-            View your account details
-          </p>
-        </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-emerald-100">
+                    Customer Profile
+                  </p>
+                  <h1 className="mt-1 text-2xl font-bold md:text-3xl">
+                    My Profile
+                  </h1>
+                  <p className="mt-1 text-sm text-emerald-50">
+                    View and manage your account information.
+                  </p>
+                </div>
+              </div>
 
-        <div className="bg-white rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-sm border border-stone-100 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            <div>
-              <label className="text-xs md:text-sm font-medium text-stone-500 mb-2 flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                Email
-              </label>
-
-              <p className="font-semibold text-base md:text-lg text-stone-800 break-words">
-                {displayEmail}
-              </p>
-            </div>
-
-            <div>
-              <label className="text-xs md:text-sm font-medium text-stone-500 mb-2 flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Name
-              </label>
-
-              <p className="font-semibold text-base md:text-lg text-stone-800 break-words">
-                {displayName}
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-xs md:text-sm font-medium text-stone-500 mb-2 flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Phone
-              </label>
-
-              <p className="font-semibold text-base md:text-lg text-stone-800 break-words">
-                {displayPhone}
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-xs md:text-sm font-medium text-stone-500 mb-2 flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Address
-              </label>
-
-              <p className="font-semibold text-base md:text-lg text-stone-800 break-words">
-                {displayAddress}
-              </p>
+              <Button
+                type="button"
+                onClick={() => navigate("/profile/edit")}
+                className="button-press w-full rounded-xl bg-white text-emerald-800 hover:bg-emerald-50 sm:w-auto"
+              >
+                <Edit3 className="mr-2 h-4 w-4" />
+                Edit Profile
+              </Button>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-5 md:pt-6 border-t border-stone-100">
-            <button
-              onClick={() => navigate("/profile/edit")}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 md:px-6 rounded-lg md:rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-            >
-              Edit Profile
-            </button>
+          <div className="p-6 md:p-8">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ProfileField
+                icon={<UserRound className="h-4 w-4" />}
+                label="Full Name"
+                value={displayName}
+              />
+
+              <ProfileField
+                icon={<Mail className="h-4 w-4" />}
+                label="Email"
+                value={displayEmail}
+              />
+
+              <ProfileField
+                icon={<Phone className="h-4 w-4" />}
+                label="Phone Number"
+                value={displayPhone}
+                wide
+              />
+
+              <ProfileField
+                icon={<MapPin className="h-4 w-4" />}
+                label="Address"
+                value={displayAddress}
+                wide
+              />
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-800">
+              Keep your contact information updated so the business can confirm
+              your orders, appointments, and delivery details properly.
+            </div>
           </div>
         </div>
       </div>

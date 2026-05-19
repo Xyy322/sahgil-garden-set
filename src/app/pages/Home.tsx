@@ -6,7 +6,7 @@ import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 // Home page component for the landing page
 export function Home() {
   return (
-    <div className="flex flex-col w-full">
+    <div className="page-fade-in flex w-full flex-col">
 
       {/* HERO (LARGE - ONLY ONE IN SYSTEM) */}
       <section className="relative w-full h-[85vh] min-h-[700px] bg-stone-900 overflow-hidden">
@@ -32,11 +32,11 @@ export function Home() {
           </p>
           {/* Action buttons for booking landscaping or ordering furniture */}
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <Link to="/services" className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-600 rounded-full hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/30 hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 group">
+            <Link to="/services" className="button-press inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-600 rounded-full hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/30 hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 group">
               Book Landscaping
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <Link to="/services" className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-white/10 backdrop-blur-md border border-white/20 rounded-full hover:bg-white/20 transition-all hover:-translate-y-0.5">
+            <Link to="/services" className="button-press inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-white/10 backdrop-blur-md border border-white/20 rounded-full hover:bg-white/20 transition-all hover:-translate-y-0.5">
               Order Furniture
             </Link>
           </div>
@@ -55,7 +55,7 @@ export function Home() {
           {/* Feature cards grid: Each card represents a core service or product */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Feature 1: Garden Furniture */}
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group border border-stone-100 flex flex-col h-full">
+            <div className="hover-lift bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group border border-stone-100 flex flex-col h-full">
               {/* Image and icon for furniture */}
               <div className="h-64 overflow-hidden relative">
                 <ImageWithFallback 
@@ -75,7 +75,7 @@ export function Home() {
                   Durable, stylish, and comfortable seating arrangements designed to withstand the elements while looking beautiful.
                 </p>
                 {/* Link to shop furniture services */}
-                <Link to="/services" className="inline-flex items-center text-emerald-600 font-semibold hover:text-emerald-700 group/link">
+                <Link to="/services" className="button-press inline-flex items-center justify-center px-10 py-5 text-xl font-bold text-white bg-emerald-600 rounded-full hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-600/20 hover:shadow-emerald-600/40 hover:-translate-y-1">
                   Shop Furniture
                   <ArrowRight className="w-4 h-4 ml-1 group-hover/link:translate-x-1 transition-transform" />
                 </Link>
@@ -83,7 +83,7 @@ export function Home() {
             </div>
 
             {/* Feature 2: Landscaping Services */}
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group border border-stone-100 flex flex-col h-full">
+            <div className="hover-lift bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group border border-stone-100 flex flex-col h-full">
               {/* Image and icon for landscaping */}
               <div className="h-64 overflow-hidden relative">
                 <ImageWithFallback 
@@ -111,7 +111,7 @@ export function Home() {
             </div>
 
             {/* Feature 3: Custom Designs */}
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group border border-stone-100 flex flex-col h-full">
+            <div className="hover-lift bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group border border-stone-100 flex flex-col h-full">
               {/* Image and icon for custom design */}
               <div className="h-64 overflow-hidden relative">
                 <ImageWithFallback 

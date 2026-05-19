@@ -10,7 +10,7 @@ import { TreePine, Home, Ruler, Droplets } from "lucide-react";
 // This page is informational and does not directly affect application state, but it builds trust and context for users.
 export function About() {
   return (
-    <div className="min-h-screen bg-[#f9f7f4]">
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4]">
 
       {/* HERO (MEDIUM STANDARD) */}
       <section className="relative w-full h-[65vh] min-h-[500px] bg-stone-900 overflow-hidden flex items-center justify-center">
@@ -35,7 +35,7 @@ export function About() {
         {/* Story Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24">
           {/* Image */}
-          <div className="order-2 lg:order-1 relative rounded-3xl overflow-hidden shadow-2xl">
+          <div className="hover-lift order-2 lg:order-1 relative rounded-3xl overflow-hidden shadow-2xl">
             <ImageWithFallback
               src="https://images.unsplash.com/photo-1663185777721-a53e090dfecf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYXJkZW4lMjBsYW5kc2NhcGluZyUyMHBhdGh8ZW58MXx8fHwxNzcyNzMxNjMxfDA&ixlib=rb-4.1.0&q=80&w=1080"
               alt="Craftsman working"
@@ -92,7 +92,7 @@ export function About() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Sustainability */}
-            <Card className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="hover-lift bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center transition-all duration-300">
               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <TreePine className="w-8 h-8 text-emerald-600" />
               </div>
@@ -109,7 +109,7 @@ export function About() {
             </Card>
 
             {/* Precision */}
-            <Card className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="hover-lift bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center transition-all duration-300">
               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Ruler className="w-8 h-8 text-emerald-600" />
               </div>
@@ -126,7 +126,7 @@ export function About() {
             </Card>
 
             {/* Livability */}
-            <Card className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="hover-lift bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center transition-all duration-300">
               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Home className="w-8 h-8 text-emerald-600" />
               </div>
@@ -143,7 +143,7 @@ export function About() {
             </Card>
 
             {/* Durability */}
-            <Card className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="hover-lift bg-white p-8 rounded-2xl shadow-sm border border-stone-100 text-center transition-all duration-300">
               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Droplets className="w-8 h-8 text-emerald-600" />
               </div>
