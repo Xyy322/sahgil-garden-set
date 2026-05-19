@@ -110,21 +110,28 @@ export function LandscapingBooking() {
   const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
-    description: "",
-  });
+  fullName: "",
+  phone: "",
+  address: "",
+  description: "",
+});
 
   const authEmail = user?.email || profile?.email || "";
 
   const defaultFormData = useMemo(
-    () => ({
-      fullName: profile?.fullName || user?.displayName || "",
-      phone: profile?.phoneNumber || "",
-      description: "",
-    }),
-    [profile?.fullName, profile?.phoneNumber, user?.displayName]
-  );
+  () => ({
+    fullName: profile?.fullName || user?.displayName || "",
+    phone: profile?.phoneNumber || "",
+    address: profile?.address || "",
+    description: "",
+  }),
+  [
+    profile?.fullName,
+    profile?.phoneNumber,
+    profile?.address,
+    user?.displayName,
+  ]
+);
 
   const selectedDateKey = selectedDate ? toDateKey(selectedDate) : "";
   const selectedLockDates = selectedDateKey
@@ -152,10 +159,12 @@ export function LandscapingBooking() {
     }
 
     setFormData((prev) => ({
-      ...prev,
-      fullName: prev.fullName || defaultFormData.fullName,
-      phone: prev.phone || defaultFormData.phone,
-    }));
+  ...prev,
+  fullName: prev.fullName || defaultFormData.fullName,
+  phone: prev.phone || defaultFormData.phone,
+  address: prev.address || defaultFormData.address,
+}));
+
   }, [authLoading, user, role, defaultFormData]);
 
   useEffect(() => {
@@ -249,8 +258,9 @@ if (selected <= today) {
 }
 
     const cleanName = formData.fullName.trim();
-    const cleanPhone = formData.phone.trim();
-    const cleanDescription = formData.description.trim();
+const cleanPhone = formData.phone.trim();
+const cleanAddress = formData.address.trim();
+const cleanDescription = formData.description.trim();
 
     if (!cleanName) {
       setError("Please enter your full name.");
@@ -261,6 +271,11 @@ if (selected <= today) {
       setError("Please enter your phone number.");
       return;
     }
+
+    if (!cleanAddress) {
+  setError("Please enter your address.");
+  return;
+}
 
     const validation = validateAppointment(
       selectedDate,
@@ -297,8 +312,10 @@ if (selected <= today) {
         userId: user.uid,
 
         customerName: cleanName,
-        customerEmail: authEmail,
-        customerPhone: cleanPhone,
+customerEmail: authEmail,
+customerPhone: cleanPhone,
+customerAddress: cleanAddress,
+address: cleanAddress,
 
         date: dateKey,
         time: selectedTime,
@@ -454,6 +471,14 @@ if (selected <= today) {
                 </span>
               </div>
             )}
+            {formData.address && (
+  <div className="flex justify-between gap-4 text-sm">
+    <span className="text-stone-500">Address</span>
+    <span className="text-right font-medium text-stone-800">
+      {formData.address}
+    </span>
+  </div>
+)}
           </div>
 
           <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
@@ -709,6 +734,20 @@ and the next two days are reserved while the appointment is pending or approved.
                   className="mt-2"
                 />
               </div>
+
+                <div>
+  <Label htmlFor="address">Address</Label>
+  <Textarea
+    id="address"
+    placeholder="Enter your complete address or project location"
+    value={formData.address}
+    onChange={(e) =>
+      setFormData({ ...formData, address: e.target.value })
+    }
+    required
+    className="mt-2 min-h-[90px]"
+  />
+</div>      
 
               <div>
                 <Label htmlFor="description">Description / Inquiry</Label>

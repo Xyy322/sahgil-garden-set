@@ -6,23 +6,18 @@ import { addDays } from "date-fns";
 export interface Appointment {
   id: string;
   userId: string;
-
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-
+  customerAddress?: string;
   date: string;
   time: string;
-
-  serviceType: "landscaping-consultation";
+  serviceType: string;
   description: string;
-
   status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
-
-  createdAt: any;
-  updatedAt: any;
-
   lockDates?: string[];
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 /**

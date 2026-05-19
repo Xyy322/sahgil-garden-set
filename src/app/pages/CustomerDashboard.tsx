@@ -271,6 +271,12 @@ function normalizeAppointment(id: string, data: any): Appointment {
       typeof data.customerEmail === "string" ? data.customerEmail : "",
     customerPhone:
       typeof data.customerPhone === "string" ? data.customerPhone : "",
+      customerAddress:
+  typeof data.customerAddress === "string"
+    ? data.customerAddress
+    : typeof data.address === "string"
+    ? data.address
+    : "",
     date:
       typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
         ? data.date
@@ -1131,6 +1137,9 @@ toast.error("Failed to cancel appointment", {
                                   <div>
                                     {apt.customerPhone || "No phone provided"}
                                   </div>
+                                  <div>
+  {apt.customerAddress || "No address provided"}
+</div>
                                 </div>
                               </div>
                             </div>

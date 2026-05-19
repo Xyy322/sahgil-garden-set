@@ -14,6 +14,7 @@ import {
   Clock,
   Eye,
   Mail,
+  MapPin,
   Phone,
   Search,
   User,
@@ -21,6 +22,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+
 import { db } from "../../utils/firebase/config";
 import { createNotification } from "../../utils/createNotification";
 import {
@@ -47,6 +49,11 @@ type AppointmentStatus =
   | "completed"
   | "cancelled";
 
+type AdminAppointment = Appointment & {
+  customerAddress: string;
+  status: AppointmentStatus;
+};
+
 type FilterStatus = "all" | AppointmentStatus;
 
 const VALID_STATUSES: AppointmentStatus[] = [
@@ -72,7 +79,10 @@ function isValidStatus(status: unknown): status is AppointmentStatus {
   return VALID_STATUSES.includes(status as AppointmentStatus);
 }
 
-function normalizeAppointment(id: string, data: Record<string, any>): Appointment {
+function normalizeAppointment(
+  id: string,
+  data: Record<string, any>
+): AdminAppointment {
   return {
     id,
     userId: typeof data.userId === "string" ? data.userId : "",
@@ -91,6 +101,13 @@ function normalizeAppointment(id: string, data: Record<string, any>): Appointmen
       typeof data.customerPhone === "string" && data.customerPhone.trim()
         ? data.customerPhone
         : "No phone provided",
+
+    customerAddress:
+      typeof data.customerAddress === "string" && data.customerAddress.trim()
+        ? data.customerAddress
+        : typeof data.address === "string" && data.address.trim()
+        ? data.address
+        : "No address provided",
 
     date:
       typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
@@ -120,7 +137,7 @@ function normalizeAppointment(id: string, data: Record<string, any>): Appointmen
   };
 }
 
-function safeAppointmentSort(a: Appointment, b: Appointment) {
+function safeAppointmentSort(a: AdminAppointment, b: AdminAppointment) {
   const dateA = a.date || "9999-12-31";
   const dateB = b.date || "9999-12-31";
 
@@ -154,7 +171,7 @@ function formatStatus(status: unknown) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function getReservedDates(appointment: Appointment) {
+function getReservedDates(appointment: AdminAppointment) {
   if (appointment.lockDates && appointment.lockDates.length > 0) {
     return appointment.lockDates;
   }
@@ -167,7 +184,7 @@ function getReservedDates(appointment: Appointment) {
 }
 
 export function AppointmentsManagement() {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<AdminAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -176,7 +193,7 @@ export function AppointmentsManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedAppointment, setSelectedAppointment] =
-    useState<Appointment | null>(null);
+    useState<AdminAppointment | null>(null);
 
   const { user, role, loading: authLoading } = useAuth();
 
@@ -214,7 +231,9 @@ export function AppointmentsManagement() {
       (snap) => {
         try {
           const apts = snap.docs
-            .map((document) => normalizeAppointment(document.id, document.data()))
+            .map((document) =>
+              normalizeAppointment(document.id, document.data())
+            )
             .sort(safeAppointmentSort);
 
           setAppointments(apts);
@@ -296,19 +315,21 @@ export function AppointmentsManagement() {
           statusRefId: id,
         });
       }
+
       toast.success("Appointment updated", {
-  description: `Appointment is now ${newStatus}.`,
-});
+        description: `Appointment is now ${newStatus}.`,
+      });
     } catch (err) {
       console.error("Appointment status update error:", err);
+
       const message =
-  err instanceof Error ? err.message : "Failed to update appointment";
+        err instanceof Error ? err.message : "Failed to update appointment";
 
-setError(message);
+      setError(message);
 
-toast.error("Failed to update appointment", {
-  description: message,
-});
+      toast.error("Failed to update appointment", {
+        description: message,
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -318,13 +339,13 @@ toast.error("Failed to update appointment", {
     const keyword = searchTerm.trim().toLowerCase();
 
     return appointments.filter((appointment) => {
-      const matchesStatus =
-        filter === "all" || appointment.status === filter;
+      const matchesStatus = filter === "all" || appointment.status === filter;
 
       const searchableText = [
         appointment.customerName,
         appointment.customerEmail,
         appointment.customerPhone,
+        appointment.customerAddress,
         appointment.date,
         appointment.time,
         appointment.status,
@@ -382,7 +403,7 @@ toast.error("Failed to update appointment", {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-fade-in space-y-6">
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Appointment Management
@@ -393,8 +414,8 @@ toast.error("Failed to update appointment", {
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage customer appointment requests, approval status, and 3-day
-          schedule reservations.
+          Manage customer appointment requests, approval status, address details,
+          and 3-day schedule reservations.
         </p>
       </div>
 
@@ -449,7 +470,7 @@ toast.error("Failed to update appointment", {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search customer, email, phone, date, or details..."
+                placeholder="Search customer, email, phone, address, date, or details..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
@@ -501,7 +522,7 @@ toast.error("Failed to update appointment", {
 
                       <span
                         className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
-                          appointment.status as AppointmentStatus
+                          appointment.status
                         )}`}
                       >
                         {formatStatus(appointment.status)}
@@ -516,7 +537,7 @@ toast.error("Failed to update appointment", {
                     </p>
 
                     <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                      {appointment.description || "No project details provided."}
+                      {appointment.customerAddress || "No address provided"}
                     </p>
                   </div>
 
@@ -612,164 +633,142 @@ toast.error("Failed to update appointment", {
           if (!open) setSelectedAppointment(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Appointment Details</DialogTitle>
-          </DialogHeader>
-
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           {selectedLiveAppointment && (
-            <div className="space-y-5">
-              <div className="rounded-2xl border border-border bg-background p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Appointment Schedule
-                    </p>
-                    <h3 className="text-lg font-bold text-foreground">
-                      {selectedLiveAppointment.date
+            <>
+              <DialogHeader>
+                <DialogTitle>Appointment Details</DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DetailItem
+                    icon={<CalendarDays className="h-4 w-4" />}
+                    label="Date"
+                    value={
+                      selectedLiveAppointment.date
                         ? formatDisplayDate(selectedLiveAppointment.date)
-                        : "No date provided"}
-                    </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {selectedLiveAppointment.time
+                        : "No date provided"
+                    }
+                  />
+
+                  <DetailItem
+                    icon={<Clock className="h-4 w-4" />}
+                    label="Time"
+                    value={
+                      selectedLiveAppointment.time
                         ? formatTime(selectedLiveAppointment.time)
-                        : "No time provided"}
-                    </p>
-                  </div>
+                        : "No time provided"
+                    }
+                  />
 
-                  <span
-                    className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
-                      selectedLiveAppointment.status as AppointmentStatus
-                    )}`}
-                  >
-                    {formatStatus(selectedLiveAppointment.status)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <InfoBox title="Customer Details">
-                  <InfoRow
+                  <DetailItem
                     icon={<User className="h-4 w-4" />}
-                    label="Name"
+                    label="Customer"
                     value={selectedLiveAppointment.customerName}
                   />
-                  <InfoRow
+
+                  <DetailItem
                     icon={<Mail className="h-4 w-4" />}
                     label="Email"
                     value={selectedLiveAppointment.customerEmail}
                   />
-                  <InfoRow
+
+                  <DetailItem
                     icon={<Phone className="h-4 w-4" />}
                     label="Phone"
                     value={selectedLiveAppointment.customerPhone}
                   />
-                </InfoBox>
 
-                <InfoBox title="Service Details">
-                  <InfoRow
-                    icon={<CalendarDays className="h-4 w-4" />}
-                    label="Service"
-                    value="Landscaping Consultation"
+                  <DetailItem
+                    icon={<MapPin className="h-4 w-4" />}
+                    label="Address"
+                    value={selectedLiveAppointment.customerAddress}
                   />
-                  <InfoRow
-                    icon={<Clock className="h-4 w-4" />}
-                    label="3-Day Lock"
-                    value={
-                      selectedLiveAppointment.status === "pending" ||
-                      selectedLiveAppointment.status === "approved"
-                        ? "Active"
-                        : "Released"
-                    }
-                  />
-                </InfoBox>
-              </div>
+                </div>
 
-              <div>
-                <p className="mb-2 text-sm font-semibold text-foreground">
-                  Project Details
-                </p>
-                <p className="whitespace-pre-wrap rounded-xl border border-border bg-muted/40 p-4 text-sm leading-relaxed text-foreground">
-                  {selectedLiveAppointment.description ||
-                    "No project details provided."}
-                </p>
-              </div>
+                <div className="rounded-2xl border border-border bg-background p-4">
+                  <p className="mb-2 text-sm font-semibold text-foreground">
+                    Project Description
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {selectedLiveAppointment.description ||
+                      "No project details provided."}
+                  </p>
+                </div>
 
-              {(selectedLiveAppointment.status === "pending" ||
-                selectedLiveAppointment.status === "approved") &&
-                selectedLiveAppointment.date && (
-                  <div>
-                    <p className="mb-2 text-sm font-semibold text-foreground">
-                      Reserved Dates
-                    </p>
+                <div className="rounded-2xl border border-border bg-background p-4">
+                  <p className="mb-2 text-sm font-semibold text-foreground">
+                    Reserved Dates
+                  </p>
 
-                    <div className="flex flex-wrap gap-2">
-                      {getReservedDates(selectedLiveAppointment).map((date) => (
+                  <div className="flex flex-wrap gap-2">
+                    {getReservedDates(selectedLiveAppointment).length > 0 ? (
+                      getReservedDates(selectedLiveAppointment).map((date) => (
                         <span
-                          key={`${selectedLiveAppointment.id}-${date}`}
-                          className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground"
+                          key={date}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
                         >
                           {date}
                         </span>
-                      ))}
-                    </div>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No reserved dates recorded.
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
 
-              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
-                {selectedLiveAppointment.status === "pending" && (
-                  <>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  {selectedLiveAppointment.status === "pending" && (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleStatusChange(
+                            selectedLiveAppointment.id || "",
+                            "approved"
+                          )
+                        }
+                        disabled={updatingId === selectedLiveAppointment.id}
+                      >
+                        Approve
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() =>
+                          handleStatusChange(
+                            selectedLiveAppointment.id || "",
+                            "rejected"
+                          )
+                        }
+                        disabled={updatingId === selectedLiveAppointment.id}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+
+                  {selectedLiveAppointment.status === "approved" && (
                     <Button
+                      type="button"
                       onClick={() =>
                         handleStatusChange(
                           selectedLiveAppointment.id || "",
-                          "approved"
+                          "completed"
                         )
                       }
                       disabled={updatingId === selectedLiveAppointment.id}
                     >
-                      <Check className="mr-1 h-4 w-4" />
-                      Approve
+                      Mark Complete
                     </Button>
-
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        handleStatusChange(
-                          selectedLiveAppointment.id || "",
-                          "rejected"
-                        )
-                      }
-                      disabled={updatingId === selectedLiveAppointment.id}
-                    >
-                      <X className="mr-1 h-4 w-4" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-
-                {selectedLiveAppointment.status === "approved" && (
-                  <Button
-                    onClick={() =>
-                      handleStatusChange(
-                        selectedLiveAppointment.id || "",
-                        "completed"
-                      )
-                    }
-                    disabled={updatingId === selectedLiveAppointment.id}
-                  >
-                    Mark Complete
-                  </Button>
-                )}
-
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedAppointment(null)}
-                >
-                  Close
-                </Button>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -792,42 +791,21 @@ function SummaryCard({
     <div
       className={`rounded-2xl border p-5 shadow-sm ${
         highlight
-          ? "border-amber-200 bg-amber-50 text-amber-700"
-          : "border-border bg-card text-foreground"
+          ? "border-amber-200 bg-amber-50"
+          : "border-border bg-card"
       }`}
     >
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary">
         {icon}
       </div>
 
-      <p className="text-xs font-medium uppercase tracking-wide opacity-70">
-        {label}
-      </p>
-
-      <h3 className="mt-1 text-2xl font-bold">{value}</h3>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <h3 className="mt-1 text-2xl font-bold text-card-foreground">{value}</h3>
     </div>
   );
 }
 
-function InfoBox({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <p className="mb-3 text-sm font-semibold text-card-foreground">
-        {title}
-      </p>
-
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-function InfoRow({
+function DetailItem({
   icon,
   label,
   value,
@@ -837,13 +815,15 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 text-sm">
-      <span className="flex items-center gap-1.5 text-muted-foreground">
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {icon}
         {label}
-      </span>
+      </div>
 
-      <span className="break-words text-right text-foreground">{value}</span>
+      <p className="break-words text-sm font-semibold text-foreground">
+        {value || "Not provided"}
+      </p>
     </div>
   );
 }
