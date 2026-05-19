@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CheckCircle,
   CreditCard,
+  LogIn,
   MapPin,
   PackageCheck,
   ShoppingBag,
@@ -238,14 +239,46 @@ export function Checkout() {
   }
 
   if (!user || role !== "customer") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
-        <div className="max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
-          Only logged-in customers can access checkout.
+  return (
+    <div className="page-fade-in flex min-h-screen items-center justify-center bg-[#f9f7f4] px-4">
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
+
+      <div className="relative z-50 w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+          <LogIn className="h-7 w-7" />
+        </div>
+
+        <h2 className="text-xl font-bold text-stone-900">Login Required</h2>
+
+        <p className="mt-4 text-sm leading-relaxed text-stone-600">
+          Please log in as a customer first before proceeding to checkout.
+        </p>
+
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => navigate("/services")}
+            className="button-press rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/login", {
+                state: { from: "/checkout" },
+              })
+            }
+            className="button-press rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Login
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (orderSuccess && placedOrder) {
     return (

@@ -131,6 +131,16 @@ export function LandscapingBooking() {
     ? getBlockedDates(parseDateKey(selectedDateKey))
     : [];
 
+    const availableTimeSlots = useMemo(() => {
+  if (!selectedDate) {
+    return [];
+  }
+
+  return TIME_SLOTS.filter((time) =>
+    isTimeSlotAvailable(selectedDate, time, appointments)
+  );
+}, [selectedDate, appointments]);
+
   useEffect(() => {
     if (authLoading) {
       return;
@@ -226,6 +236,17 @@ export function LandscapingBooking() {
       setError("Please select date and time.");
       return;
     }
+
+    const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const selected = new Date(selectedDate);
+selected.setHours(0, 0, 0, 0);
+
+if (selected <= today) {
+  setError("Same-day appointment booking is not allowed. Please choose a date starting tomorrow.");
+  return;
+}
 
     const cleanName = formData.fullName.trim();
     const cleanPhone = formData.phone.trim();
@@ -493,9 +514,9 @@ export function LandscapingBooking() {
           </h1>
 
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600 md:text-base">
-            Choose an available schedule and provide your contact details. The
-            system checks the full 3-day service window to avoid overlapping
-            landscaping bookings.
+            Choose an available schedule and provide your contact details. Same-day
+appointments are not allowed, and the system checks the full 3-day service
+window to avoid overlapping landscaping bookings.
           </p>
 
           <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
@@ -505,8 +526,8 @@ export function LandscapingBooking() {
                 3-day schedule lock
               </p>
               <p className="mt-1 text-xs leading-relaxed text-emerald-800">
-                When you book a date, that date and the next two days are
-                reserved while the appointment is pending or approved.
+                Customers may book starting tomorrow only. Once a date is booked, that date
+and the next two days are reserved while the appointment is pending or approved.
               </p>
             </div>
           </div>
@@ -544,61 +565,64 @@ export function LandscapingBooking() {
                       setError("");
                     }}
                     disabled={(date) => {
-                      const now = new Date();
-                      now.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-                      const dateKey = toDateKey(date);
+  const selected = new Date(date);
+  selected.setHours(0, 0, 0, 0);
 
-                      return date < now || hasLockConflict(dateKey, blockedDates);
-                    }}
+  const dateKey = toDateKey(date);
+
+  return selected <= today || hasLockConflict(dateKey, blockedDates);
+}}
                     className="rounded-2xl border border-stone-200 bg-white p-2"
                   />
                 </div>
               </div>
 
               {selectedDate && (
-                <div>
-                  <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900">
-                    <Clock3 className="h-5 w-5 text-emerald-600" />
-                    Select Time
-                  </h2>
+  <div>
+    <h2 className="flex items-center gap-2 text-lg font-bold text-stone-900">
+      <Clock3 className="h-5 w-5 text-emerald-600" />
+      Select Time
+    </h2>
 
-                  <p className="mt-1 text-sm text-stone-500">
-                    Choose your preferred consultation time.
-                  </p>
+    <p className="mt-1 text-sm text-stone-500">
+      Choose your preferred consultation time from 7:00 AM to 4:00 PM.
+    </p>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {TIME_SLOTS.map((time) => {
-                      const available = isTimeSlotAvailable(
-                        selectedDate,
-                        time,
-                        appointments
-                      );
+    <div className="mt-4">
+      <select
+        value={selectedTime}
+        onChange={(e) => {
+          setSelectedTime(e.target.value);
+          setError("");
+        }}
+        className="h-12 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+      >
+        <option value="">Select available time</option>
 
-                      return (
-                        <button
-                          type="button"
-                          key={time}
-                          onClick={() => {
-                            setSelectedTime(time);
-                            setError("");
-                          }}
-                          disabled={!available}
-                          className={`rounded-xl px-3 py-3 text-sm font-semibold transition-all ${
-                            selectedTime === time
-                              ? "bg-emerald-600 text-white shadow-md"
-                              : available
-                              ? "bg-stone-100 text-stone-900 hover:bg-stone-200"
-                              : "cursor-not-allowed bg-stone-50 text-stone-400"
-                          }`}
-                        >
-                          {formatTime(time)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+        {TIME_SLOTS.map((time) => {
+          const available = availableTimeSlots.includes(time);
+
+          return (
+            <option key={time} value={time} disabled={!available}>
+              {formatTime(time)}
+              {!available ? " - Unavailable" : ""}
+            </option>
+          );
+        })}
+      </select>
+
+      {availableTimeSlots.length === 0 && (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          No available time slots for the selected date. Please choose another
+          date.
+        </p>
+      )}
+    </div>
+  </div>
+)}
 
               {selectedDate && (
                 <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
