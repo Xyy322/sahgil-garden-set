@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   doc,
@@ -7,6 +7,7 @@ import {
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
+import { Mail, MessageSquare, Search, UserRound } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { db } from "../../utils/firebase/config";
@@ -28,6 +29,11 @@ type AdminInquiry = Inquiry & {
   adminRead?: boolean;
   adminReadAt?: unknown;
 };
+
+type ReadFilter = "All" | "Unread" | "Read";
+type CustomerTypeFilter = "All" | "Guest" | "Registered";
+
+const INQUIRIES_PER_PAGE = 5;
 
 function formatDate(value: unknown) {
   if (!value) return "N/A";
@@ -77,19 +83,20 @@ function customerTypeBadge(customerType: unknown) {
   return "bg-emerald-50 text-emerald-700 border-emerald-200";
 }
 
-function getCustomerName(inq: AdminInquiry) {
-  if (inq.fullName && inq.fullName.trim()) {
-    return inq.fullName;
+function getCustomerName(inquiry: AdminInquiry) {
+  if (inquiry.fullName && inquiry.fullName.trim()) {
+    return inquiry.fullName;
   }
 
-  const combinedName = `${inq.firstName || ""} ${inq.lastName || ""}`.trim();
+  const combinedName = `${inquiry.firstName || ""} ${
+    inquiry.lastName || ""
+  }`.trim();
 
   return combinedName || "Unknown Customer";
 }
 
 function normalizeInquiry(id: string, data: any): AdminInquiry {
-  const customerType =
-    data.customerType === "guest" ? "guest" : "registered";
+  const customerType = data.customerType === "guest" ? "guest" : "registered";
 
   return {
     id,
@@ -117,6 +124,12 @@ export function AdminInquiries() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [readFilter, setReadFilter] = useState<ReadFilter>("All");
+  const [customerTypeFilter, setCustomerTypeFilter] =
+    useState<CustomerTypeFilter>("All");
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [selectedInquiry, setSelectedInquiry] = useState<AdminInquiry | null>(
     null
   );
@@ -124,17 +137,22 @@ export function AdminInquiries() {
   const { user, role, loading: authLoading } = useAuth();
 
   const selectedLiveInquiry = selectedInquiry
-    ? inquiries.find((inq) => inq.id === selectedInquiry.id) || selectedInquiry
+    ? inquiries.find((inquiry) => inquiry.id === selectedInquiry.id) ||
+      selectedInquiry
     : null;
 
   const totalCount = inquiries.length;
-  const unreadCount = inquiries.filter((inq) => inq.adminRead !== true).length;
-  const readCount = inquiries.filter((inq) => inq.adminRead === true).length;
+  const unreadCount = inquiries.filter(
+    (inquiry) => inquiry.adminRead !== true
+  ).length;
+  const readCount = inquiries.filter(
+    (inquiry) => inquiry.adminRead === true
+  ).length;
   const guestCount = inquiries.filter(
-    (inq) => inq.customerType === "guest"
+    (inquiry) => inquiry.customerType === "guest"
   ).length;
   const registeredCount = inquiries.filter(
-    (inq) => inq.customerType !== "guest"
+    (inquiry) => inquiry.customerType !== "guest"
   ).length;
 
   useEffect(() => {
@@ -191,15 +209,74 @@ export function AdminInquiries() {
     return () => unsubscribe();
   }, [authLoading, user, role]);
 
-  const handleViewInquiry = async (inq: AdminInquiry) => {
-    setSelectedInquiry(inq);
+  const filteredInquiries = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
 
-    if (inq.adminRead === true) {
+    return inquiries.filter((inquiry) => {
+      const matchesRead =
+        readFilter === "All" ||
+        (readFilter === "Read" && inquiry.adminRead === true) ||
+        (readFilter === "Unread" && inquiry.adminRead !== true);
+
+      const matchesType =
+        customerTypeFilter === "All" ||
+        (customerTypeFilter === "Guest" &&
+          inquiry.customerType === "guest") ||
+        (customerTypeFilter === "Registered" &&
+          inquiry.customerType !== "guest");
+
+      const searchableText = [
+        getCustomerName(inquiry),
+        inquiry.email,
+        inquiry.phone,
+        inquiry.inquiryType,
+        inquiry.message,
+        inquiry.customerType,
+        inquiry.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !keyword || searchableText.includes(keyword);
+
+      return matchesRead && matchesType && matchesSearch;
+    });
+  }, [inquiries, searchTerm, readFilter, customerTypeFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredInquiries.length / INQUIRIES_PER_PAGE)
+  );
+
+  const pageStartIndex = (currentPage - 1) * INQUIRIES_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + INQUIRIES_PER_PAGE,
+    filteredInquiries.length
+  );
+
+  const paginatedInquiries = filteredInquiries.slice(
+    pageStartIndex,
+    pageEndIndex
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, readFilter, customerTypeFilter]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const handleViewInquiry = async (inquiry: AdminInquiry) => {
+    setSelectedInquiry(inquiry);
+
+    if (inquiry.adminRead === true) {
       return;
     }
 
     try {
-      await updateDoc(doc(db, "inquiries", inq.id), {
+      await updateDoc(doc(db, "inquiries", inquiry.id), {
         adminRead: true,
         adminReadAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -214,7 +291,7 @@ export function AdminInquiries() {
     }
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
         Loading inquiries...
@@ -232,107 +309,197 @@ export function AdminInquiries() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Inquiry Management
+        </p>
+
+        <h1 className="mt-1 text-2xl font-bold text-card-foreground md:text-3xl">
+          Customer Inquiries
+        </h1>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          View guest and registered customer inquiries submitted through the
+          contact page.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <SummaryCard label="Total" value={totalCount} />
+        <SummaryCard label="Unread" value={unreadCount} highlight />
+        <SummaryCard label="Read" value={readCount} />
+        <SummaryCard label="Guest" value={guestCount} />
+        <SummaryCard label="Registered" value={registeredCount} />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-card-foreground">
-              Inquiries
+            <h2 className="text-xl font-bold text-card-foreground">
+              Recent Inquiries
             </h2>
             <p className="text-sm text-muted-foreground">
-              View guest and registered customer inquiries submitted through the
-              system.
+              Showing{" "}
+              {filteredInquiries.length === 0
+                ? "0"
+                : `${pageStartIndex + 1}-${pageEndIndex}`}{" "}
+              of {filteredInquiries.length} filtered inquiry
+              {filteredInquiries.length === 1 ? "" : "s"}
             </p>
           </div>
 
-          <span className="w-fit rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
-            {totalCount} total
-          </span>
+          <div className="flex w-full flex-col gap-3 lg:max-w-3xl">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search name, email, phone, type, or message..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <select
+                value={readFilter}
+                onChange={(event) =>
+                  setReadFilter(event.target.value as ReadFilter)
+                }
+                className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+                aria-label="Filter inquiries by read status"
+              >
+                <option value="All">All Read Status</option>
+                <option value="Unread">Unread Only</option>
+                <option value="Read">Read Only</option>
+              </select>
+
+              <select
+                value={customerTypeFilter}
+                onChange={(event) =>
+                  setCustomerTypeFilter(
+                    event.target.value as CustomerTypeFilter
+                  )
+                }
+                className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+                aria-label="Filter inquiries by customer type"
+              >
+                <option value="All">All Customer Types</option>
+                <option value="Guest">Guest Only</option>
+                <option value="Registered">Registered Only</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-5">
-          <SummaryCard label="Total" value={totalCount} />
-          <SummaryCard label="Unread" value={unreadCount} highlight />
-          <SummaryCard label="Read" value={readCount} />
-          <SummaryCard label="Guest" value={guestCount} />
-          <SummaryCard label="Registered" value={registeredCount} />
-        </div>
-
-        {inquiries.length === 0 ? (
+        {filteredInquiries.length === 0 ? (
           <div className="rounded-xl border border-border bg-background py-10 text-center text-sm text-muted-foreground">
             No inquiries found.
           </div>
         ) : (
-          <div className="space-y-3">
-            {inquiries.map((inq) => (
+          <div className="max-h-[720px] space-y-3 overflow-y-auto pr-2">
+            {paginatedInquiries.map((inquiry) => (
               <div
-                key={inq.id}
-                className={`rounded-2xl border p-4 sm:p-5 ${
-                  inq.adminRead === true
+                key={inquiry.id}
+                className={`rounded-2xl border p-4 shadow-sm ${
+                  inquiry.adminRead === true
                     ? "border-border bg-background"
                     : "border-red-200 bg-red-50/40"
                 }`}
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-foreground">
-                        {getCustomerName(inq)}
+                        {getCustomerName(inquiry)}
                       </p>
 
                       <span
                         className={`inline-block rounded-full border px-2.5 py-1 text-xs font-medium ${readBadge(
-                          inq.adminRead
+                          inquiry.adminRead
                         )}`}
                       >
-                        {inq.adminRead ? "Read" : "Unread"}
+                        {inquiry.adminRead ? "Read" : "Unread"}
                       </span>
 
                       <span
                         className={`inline-block rounded-full border px-2.5 py-1 text-xs font-medium ${customerTypeBadge(
-                          inq.customerType
+                          inquiry.customerType
                         )}`}
                       >
-                        {inq.customerType === "guest" ? "Guest" : "Registered"}
+                        {inquiry.customerType === "guest"
+                          ? "Guest"
+                          : "Registered"}
                       </span>
                     </div>
 
-                    <p className="text-sm text-muted-foreground">
-                      {inq.email || "No email provided"}
-                    </p>
+                    <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-4">
+                      <span className="inline-flex items-center gap-1.5 break-all">
+                        <Mail className="h-4 w-4 shrink-0" />
+                        {inquiry.email || "No email provided"}
+                      </span>
 
-                    {inq.phone && (
-                      <p className="text-sm text-muted-foreground">
-                        {inq.phone}
-                      </p>
-                    )}
+                      {inquiry.phone && (
+                        <span>{inquiry.phone}</span>
+                      )}
+                    </div>
 
                     <p className="text-sm font-medium text-foreground">
-                      {inq.inquiryType || "General Inquiry"}
+                      {inquiry.inquiryType || "General Inquiry"}
                     </p>
 
-                    {inq.message && (
-                      <p className="line-clamp-2 text-sm text-foreground">
-                        {inq.message}
+                    {inquiry.message && (
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {inquiry.message}
                       </p>
                     )}
 
                     <p className="text-xs text-muted-foreground">
-                      Submitted: {formatDate(inq.createdAt)}
+                      Submitted: {formatDate(inquiry.createdAt)}
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      size="sm"
-                      variant={inq.adminRead ? "outline" : "default"}
-                      onClick={() => handleViewInquiry(inq)}
-                    >
-                      View
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant={inquiry.adminRead ? "outline" : "default"}
+                    onClick={() => handleViewInquiry(inquiry)}
+                    className="w-full shrink-0 sm:w-auto"
+                  >
+                    View
+                  </Button>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {filteredInquiries.length > INQUIRIES_PER_PAGE && (
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+              >
+                Next
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -343,7 +510,7 @@ export function AdminInquiries() {
           if (!open) setSelectedInquiry(null);
         }}
       >
-        <DialogContent className="max-w-lg overflow-hidden">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-card-foreground">
               Inquiry Details
@@ -372,49 +539,37 @@ export function AdminInquiries() {
                 </span>
               </div>
 
-              <div>
-                <p className="text-sm text-muted-foreground">Customer Name</p>
-                <p className="font-medium text-foreground">
-                  {getCustomerName(selectedLiveInquiry)}
-                </p>
-              </div>
+              <DetailRow
+                label="Customer Name"
+                value={getCustomerName(selectedLiveInquiry)}
+              />
 
-              <div>
-                <p className="text-sm text-muted-foreground">Email</p>
-                <p className="font-medium text-foreground">
-                  {selectedLiveInquiry.email || "No email provided"}
-                </p>
-              </div>
+              <DetailRow
+                label="Email"
+                value={selectedLiveInquiry.email || "No email provided"}
+              />
 
-              <div>
-                <p className="text-sm text-muted-foreground">Phone</p>
-                <p className="font-medium text-foreground">
-                  {selectedLiveInquiry.phone || "No phone provided"}
-                </p>
-              </div>
+              <DetailRow
+                label="Phone"
+                value={selectedLiveInquiry.phone || "No phone provided"}
+              />
 
-              <div>
-                <p className="text-sm text-muted-foreground">Inquiry Type</p>
-                <p className="font-medium text-foreground">
-                  {selectedLiveInquiry.inquiryType || "General Inquiry"}
-                </p>
-              </div>
+              <DetailRow
+                label="Inquiry Type"
+                value={selectedLiveInquiry.inquiryType || "General Inquiry"}
+              />
 
-              <div>
-                <p className="text-sm text-muted-foreground">Submitted At</p>
-                <p className="font-medium text-foreground">
-                  {formatDate(selectedLiveInquiry.createdAt)}
-                </p>
-              </div>
+              <DetailRow
+                label="Submitted At"
+                value={formatDate(selectedLiveInquiry.createdAt)}
+              />
 
               {selectedLiveInquiry.adminReadAt !== null &&
                 selectedLiveInquiry.adminReadAt !== undefined && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Read At</p>
-                    <p className="font-medium text-foreground">
-                      {formatDate(selectedLiveInquiry.adminReadAt)}
-                    </p>
-                  </div>
+                  <DetailRow
+                    label="Read At"
+                    value={formatDate(selectedLiveInquiry.adminReadAt)}
+                  />
                 )}
 
               <div>
@@ -451,16 +606,26 @@ function SummaryCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 ${
+      className={`min-w-0 rounded-2xl border p-4 shadow-sm ${
         highlight
           ? "border-red-200 bg-red-50 text-red-700"
-          : "border-border bg-background text-foreground"
+          : "border-border bg-card text-foreground"
       }`}
     >
       <p className="text-xs font-medium uppercase tracking-wide opacity-70">
         {label}
       </p>
+
       <p className="mt-1 text-2xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="break-words font-medium text-foreground">{value}</p>
     </div>
   );
 }
