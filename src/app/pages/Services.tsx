@@ -36,18 +36,19 @@ type CatalogProduct = Product & {
 };
 
 function normalizeProduct(id: string, data: any): CatalogProduct {
+  const status = data.status === "available" ? "available" : "unavailable";
+
   return {
     id,
-    name: typeof data.name === "string" ? data.name : "Untitled Product",
+    name:
+      typeof data.name === "string" && data.name.trim()
+        ? data.name
+        : "Untitled Product",
     description: typeof data.description === "string" ? data.description : "",
     price: typeof data.price === "number" ? data.price : Number(data.price) || 0,
     imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
     category: typeof data.category === "string" ? data.category : "Garden Set",
-    customizable: data.customizable === true,
-    status:
-      typeof data.status === "string"
-        ? data.status.trim().toLowerCase()
-        : "available",
+    status,
   } as CatalogProduct;
 }
 
@@ -213,7 +214,7 @@ export function Services() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-stone-300 md:text-xl">
-            Browse available garden furniture sets and schedule landscaping
+            Browse made-to-order garden furniture sets and schedule landscaping
             appointments in one convenient system.
           </p>
 
@@ -249,14 +250,14 @@ export function Services() {
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
-                  Browse available garden furniture sets and place your order
-                  online.
+                  Browse made-to-order garden furniture sets and place your
+                  request online.
                 </p>
               </div>
             </div>
 
             <p className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
-              {products.length} available product
+              {products.length} catalog product
               {products.length === 1 ? "" : "s"}
             </p>
           </div>
@@ -265,12 +266,13 @@ export function Services() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="relative w-full md:max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+
                 <input
                   type="text"
                   placeholder="Search garden sets..."
                   value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
                     setShowAllProducts(false);
                   }}
                   className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
@@ -352,12 +354,6 @@ export function Services() {
                           <h3 className="text-lg font-bold text-stone-900 md:text-xl">
                             {product.name}
                           </h3>
-
-                          {product.customizable && (
-                            <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                              Customizable
-                            </span>
-                          )}
                         </div>
 
                         <p className="mb-5 line-clamp-2 flex-1 text-sm leading-relaxed text-stone-600">
@@ -400,7 +396,9 @@ export function Services() {
                   >
                     {showAllProducts
                       ? "Show Less Products"
-                      : `Show More Products (${filteredProducts.length - initialVisibleCount} more)`}
+                      : `Show More Products (${
+                          filteredProducts.length - initialVisibleCount
+                        } more)`}
                   </Button>
                 </div>
               )}
@@ -513,7 +511,7 @@ export function Services() {
               <DialogHeader>
                 <DialogTitle>{selectedProduct.name}</DialogTitle>
                 <DialogDescription>
-                  Product details and ordering information.
+                  Made-to-order product details and ordering information.
                 </DialogDescription>
               </DialogHeader>
 
@@ -531,23 +529,17 @@ export function Services() {
                     {formatMoney(selectedProduct.price)}
                   </p>
 
-                  {selectedProduct.customizable && (
-                    <span className="mt-3 w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      Customizable
-                    </span>
-                  )}
-
                   <p className="mt-5 text-sm leading-relaxed text-stone-600">
                     {selectedProduct.description || "No description provided."}
                   </p>
 
                   <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
                     <p className="text-sm font-semibold text-stone-800">
-                      Custom request?
+                      Made-to-order item
                     </p>
                     <p className="mt-1 text-sm text-stone-500">
-                      For per-piece orders or custom dimensions, send an inquiry
-                      through the Contact page.
+                      For per-piece orders, custom dimensions, or special
+                      requests, send an inquiry through the Contact page.
                     </p>
                   </div>
 

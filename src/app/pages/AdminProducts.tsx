@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   addDoc,
   collection,
@@ -8,18 +8,68 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { Plus, Trash2, Edit3, X } from "lucide-react";
+import {
+  AlertCircle,
+  Edit3,
+  Eye,
+  ImageIcon,
+  Package,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+} from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
 import type { Product } from "../../types/product";
 import { uploadProductImage } from "../../utils/firebase/uploadProductImage";
 import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
 
-type ProductFormData = Omit<Product, "id">;
+type ProductCatalogStatus = "available" | "unavailable";
+type StatusFilter = "all" | ProductCatalogStatus;
+
+type ProductFormData = {
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  category: string;
+  status: ProductCatalogStatus;
+};
+
+const PRODUCTS_PER_PAGE = 5;
 
 function formatMoney(value?: number): string {
-  if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
-  return `₱${value.toFixed(2)}`;
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return "₱0.00";
+  }
+
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatStatus(status?: string): string {
+  return status === "available" ? "Shown in Catalog" : "Hidden from Catalog";
+}
+
+function statusBadge(status?: string): string {
+  if (status === "available") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  return "border-stone-200 bg-stone-100 text-stone-600";
 }
 
 function getEmptyProduct(): ProductFormData {
@@ -29,47 +79,51 @@ function getEmptyProduct(): ProductFormData {
     price: 0,
     imageUrl: "",
     category: "",
-    customizable: false,
     status: "available",
   };
 }
 
 function normalizeProduct(id: string, data: any): Product {
-  const status =
-    data.status === "available" ||
-    data.status === "unavailable" ||
-    data.status === "out-of-stock"
-      ? data.status
-      : "available";
+  const status: Product["status"] =
+    data.status === "available" ? "available" : "unavailable";
 
   return {
     id,
-    name: typeof data.name === "string" ? data.name : "Untitled Product",
+    name:
+      typeof data.name === "string" && data.name.trim()
+        ? data.name
+        : "Untitled Product",
     description: typeof data.description === "string" ? data.description : "",
     price: typeof data.price === "number" ? data.price : Number(data.price) || 0,
     imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
     category: typeof data.category === "string" ? data.category : "",
-    customizable: data.customizable === true,
     status,
-  };
+  } as Product;
 }
 
 export function AdminProducts() {
   const { user, role, loading: authLoading } = useAuth();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [products, setProducts] = useState<Product[]>([]);
-  const [showProductForm, setShowProductForm] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState("");
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(
+    null
+  );
 
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [newProduct, setNewProduct] = useState<ProductFormData>(getEmptyProduct());
+  const [newProduct, setNewProduct] =
+    useState<ProductFormData>(getEmptyProduct());
 
   useEffect(() => {
     if (authLoading) {
@@ -122,27 +176,77 @@ export function AdminProducts() {
   }, [authLoading, user, role]);
 
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    if (!q) {
-      return products;
-    }
+    const keyword = search.trim().toLowerCase();
 
     return products.filter((product) => {
-      return (
-        product.name.toLowerCase().includes(q) ||
-        (product.category || "").toLowerCase().includes(q) ||
-        (product.description || "").toLowerCase().includes(q)
-      );
+      const productStatus =
+        product.status === "available" ? "available" : "unavailable";
+
+      const matchesStatus =
+        statusFilter === "all" || productStatus === statusFilter;
+
+      const searchableText = [
+        product.name,
+        product.category,
+        product.description,
+        productStatus,
+        formatStatus(productStatus),
+        product.id,
+        formatMoney(product.price),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !keyword || searchableText.includes(keyword);
+
+      return matchesStatus && matchesSearch;
     });
-  }, [products, search]);
+  }, [products, search, statusFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE)
+  );
+
+  const pageStartIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + PRODUCTS_PER_PAGE,
+    filteredProducts.length
+  );
+
+  const paginatedProducts = filteredProducts.slice(pageStartIndex, pageEndIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const stats = useMemo(() => {
+    const categories = new Set(
+      products
+        .map((product) => product.category?.trim())
+        .filter((category): category is string => Boolean(category))
+    );
+
+    return {
+      total: products.length,
+      shown: products.filter((product) => product.status === "available").length,
+      hidden: products.filter((product) => product.status !== "available")
+        .length,
+      categories: categories.size,
+    };
+  }, [products]);
 
   const resetForm = () => {
     setNewProduct(getEmptyProduct());
     setImageFile(null);
     setEditingProduct(null);
     setFormError("");
-    setShowProductForm(false);
+    setFormOpen(false);
   };
 
   const openAddForm = () => {
@@ -150,27 +254,28 @@ export function AdminProducts() {
     setImageFile(null);
     setEditingProduct(null);
     setFormError("");
-    setShowProductForm(true);
+    setFormOpen(true);
   };
 
   const editProduct = (product: Product) => {
     setEditingProduct(product);
+
     setNewProduct({
       name: product.name || "",
       description: product.description || "",
       price: Number(product.price) || 0,
       imageUrl: product.imageUrl || "",
       category: product.category || "",
-      customizable: product.customizable === true,
-      status: product.status || "available",
+      status: product.status === "available" ? "available" : "unavailable",
     });
+
     setImageFile(null);
     setFormError("");
-    setShowProductForm(true);
+    setFormOpen(true);
   };
 
-  const saveProduct = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const saveProduct = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     if (role !== "admin") {
       setFormError("Only administrators can save products.");
@@ -179,7 +284,7 @@ export function AdminProducts() {
 
     const cleanName = newProduct.name.trim();
     const cleanDescription = newProduct.description.trim();
-    const cleanCategory = (newProduct.category || "").trim();
+    const cleanCategory = newProduct.category.trim();
     const cleanPrice = Number(newProduct.price);
 
     if (!cleanName) {
@@ -203,9 +308,9 @@ export function AdminProducts() {
     }
 
     if (!editingProduct && !imageFile) {
-  setFormError("Please upload a product image.");
-  return;
-}
+      setFormError("Please upload a product image.");
+      return;
+    }
 
     setSubmitting(true);
     setFormError("");
@@ -223,8 +328,7 @@ export function AdminProducts() {
         price: cleanPrice,
         imageUrl,
         category: cleanCategory,
-        customizable: newProduct.customizable === true,
-        status: newProduct.status || "available",
+        status: newProduct.status,
         updatedAt: serverTimestamp(),
       };
 
@@ -281,7 +385,7 @@ export function AdminProducts() {
 
   if (authLoading || loadingProducts) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
         Loading products...
       </div>
     );
@@ -296,302 +400,518 @@ export function AdminProducts() {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="bg-white rounded-3xl p-8 shadow-lg border border-stone-100 space-y-8">
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b pb-4">
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-3xl font-extrabold text-emerald-700 tracking-tight mb-1">
-              {editingProduct
-                ? `Edit Product: ${editingProduct.name}`
-                : "Products Management"}
-            </h2>
-            <p className="text-stone-500 text-base">
-              Manage products, update details, and keep the customer catalog updated.
+            <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Product Management
+            </p>
+
+            <h1 className="mt-1 text-2xl font-bold text-card-foreground md:text-3xl">
+              Product Catalog
+            </h1>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage made-to-order garden furniture products shown in the
+              customer catalog.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
+          <Button onClick={openAddForm} className="w-full gap-2 lg:w-auto">
+            <Plus className="h-4 w-4" />
+            Add Product
+          </Button>
+        </div>
+      </div>
 
-            <button
-              type="button"
-              onClick={openAddForm}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold shadow hover:bg-emerald-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Product
-            </button>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Total Products"
+          value={stats.total}
+          icon={<Package className="h-5 w-5" />}
+        />
+        <SummaryCard
+          label="Shown in Catalog"
+          value={stats.shown}
+          icon={<Eye className="h-5 w-5" />}
+          highlight
+        />
+        <SummaryCard
+          label="Hidden from Catalog"
+          value={stats.hidden}
+          icon={<Tag className="h-5 w-5" />}
+        />
+        <SummaryCard
+          label="Categories"
+          value={stats.categories}
+          icon={<Edit3 className="h-5 w-5" />}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-card-foreground">
+              Products
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Showing{" "}
+              {filteredProducts.length === 0
+                ? "0"
+                : `${pageStartIndex + 1}-${pageEndIndex}`}{" "}
+              of {filteredProducts.length} filtered product
+              {filteredProducts.length === 1 ? "" : "s"}
+            </p>
           </div>
-        </header>
 
-        {showProductForm && (
-          <form
-            onSubmit={saveProduct}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-stone-50 rounded-2xl border border-stone-200 mb-8"
-          >
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-stone-700">Product Name</label>
+          <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-2xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Product Name"
-                value={newProduct.name}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, name: e.target.value })
-                }
-                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                required
+                placeholder="Search product, category, description..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-stone-700">Price</label>
-              <input
-                type="number"
-                placeholder="Price"
-                value={newProduct.price}
-                onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    price: Number(e.target.value) || 0,
-                  })
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as StatusFilter)
+              }
+              className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Filter products by catalog visibility"
+            >
+              <option value="all">All Products</option>
+              <option value="available">Shown in Catalog</option>
+              <option value="unavailable">Hidden from Catalog</option>
+            </select>
+          </div>
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <div className="rounded-xl border border-border bg-background py-10 text-center text-sm text-muted-foreground">
+            No products found.
+          </div>
+        ) : (
+          <div className="max-h-[720px] space-y-3 overflow-y-auto pr-2">
+            {paginatedProducts.map((product) => (
+              <div
+                key={product.id}
+                className="rounded-2xl border border-border bg-background p-4 shadow-sm"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 gap-4">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-card">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="h-7 w-7 text-muted-foreground" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-foreground">
+                          {product.name}
+                        </p>
+
+                        <span
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
+                            product.status
+                          )}`}
+                        >
+                          {formatStatus(product.status)}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {product.category || "Uncategorized"} •{" "}
+                        {formatMoney(product.price)}
+                      </p>
+
+                      <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
+                        {product.description || "No description provided."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      <Eye className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => editProduct(product)}
+                    >
+                      <Edit3 className="mr-1 h-4 w-4" />
+                      Edit
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => deleteProduct(product.id)}
+                      disabled={deletingProductId === product.id}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      {deletingProductId === product.id ? "Deleting" : "Delete"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {filteredProducts.length > PRODUCTS_PER_PAGE && (
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                 }
-                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                min={1}
-                step="0.01"
-                required
-              />
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (!open) resetForm();
+          else setFormOpen(true);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProduct ? "Edit Product" : "Add Product"}
+            </DialogTitle>
+            <DialogDescription>
+              Fill in the made-to-order product details shown in the customer
+              catalog.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={saveProduct} className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label="Product Name">
+                <input
+                  type="text"
+                  placeholder="Product name"
+                  value={newProduct.name}
+                  onChange={(event) =>
+                    setNewProduct({ ...newProduct, name: event.target.value })
+                  }
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Price">
+                <input
+                  type="number"
+                  placeholder="Price"
+                  value={newProduct.price}
+                  onChange={(event) =>
+                    setNewProduct({
+                      ...newProduct,
+                      price: Number(event.target.value) || 0,
+                    })
+                  }
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  min={1}
+                  step="0.01"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Category">
+                <input
+                  type="text"
+                  placeholder="Category"
+                  value={newProduct.category || ""}
+                  onChange={(event) =>
+                    setNewProduct({
+                      ...newProduct,
+                      category: event.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Catalog Visibility">
+                <select
+                  value={newProduct.status}
+                  onChange={(event) =>
+                    setNewProduct({
+                      ...newProduct,
+                      status: event.target.value as ProductCatalogStatus,
+                    })
+                  }
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="available">Shown in Catalog</option>
+                  <option value="unavailable">Hidden from Catalog</option>
+                </select>
+              </FormField>
             </div>
 
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <label className="font-medium text-stone-700">Description</label>
+            <FormField label="Description">
               <textarea
                 placeholder="Description"
                 value={newProduct.description}
-                onChange={(e) =>
+                onChange={(event) =>
                   setNewProduct({
                     ...newProduct,
-                    description: e.target.value,
+                    description: event.target.value,
                   })
                 }
-                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                rows={3}
+                className="min-h-[110px] w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                 required
               />
-            </div>
+            </FormField>
 
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-stone-700">Category</label>
-              <input
-                type="text"
-                placeholder="Category"
-                value={newProduct.category || ""}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, category: e.target.value })
-                }
-                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                required
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-stone-700">Status</label>
-              <select
-                value={newProduct.status}
-                onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    status: e.target.value as Product["status"],
-                  })
-                }
-                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="available">Available</option>
-                <option value="unavailable">Unavailable</option>
-                <option value="out-of-stock">Out of Stock</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3 md:col-span-2">
-              <input
-                id="customizable"
-                type="checkbox"
-                checked={newProduct.customizable === true}
-                onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    customizable: e.target.checked,
-                  })
-                }
-                className="h-4 w-4"
-              />
-              <label htmlFor="customizable" className="font-medium text-stone-700">
-                Customizable product
-              </label>
-            </div>
-
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <label className="font-medium text-stone-700">Product Image</label>
+            <FormField label="Product Image">
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                className="border p-2 rounded-lg bg-white"
+                onChange={(event) =>
+                  setImageFile(event.target.files?.[0] || null)
+                }
+                className="w-full rounded-xl border border-border bg-background p-3 text-sm"
               />
 
-              {imageFile && (
-                <img
-                  src={URL.createObjectURL(imageFile)}
-                  alt="Preview"
-                  className="mt-2 h-32 w-32 object-contain rounded-lg border bg-white"
-                />
-              )}
-
-              {!imageFile && newProduct.imageUrl && (
-                <img
-                  src={newProduct.imageUrl}
-                  alt="Current product"
-                  className="mt-2 h-32 w-32 object-contain rounded-lg border bg-white"
-                />
-              )}
-            </div>
+              <div className="mt-3 flex h-36 w-36 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
+                {imageFile ? (
+                  <img
+                    src={URL.createObjectURL(imageFile)}
+                    alt="Preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : newProduct.imageUrl ? (
+                  <img
+                    src={newProduct.imageUrl}
+                    alt="Current product"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+            </FormField>
 
             {formError && (
-              <div className="md:col-span-2 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
-                {formError}
+              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>{formError}</span>
               </div>
             )}
 
-            <div className="md:col-span-2 flex flex-col sm:flex-row gap-4 pt-2">
-              <button
-                type="submit"
+            <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetForm}
                 disabled={submitting}
-                className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-semibold shadow hover:bg-emerald-700 transition-colors disabled:opacity-60"
               >
+                Cancel
+              </Button>
+
+              <Button type="submit" disabled={submitting}>
                 {submitting
                   ? "Saving..."
                   : editingProduct
                   ? "Update Product"
                   : "Add Product"}
-              </button>
-
-              <button
-                type="button"
-                onClick={resetForm}
-                disabled={submitting}
-                className="flex-1 bg-stone-200 py-3 rounded-xl font-semibold hover:bg-stone-300 transition-colors disabled:opacity-60"
-              >
-                Cancel
-              </button>
+              </Button>
             </div>
           </form>
-        )}
+        </DialogContent>
+      </Dialog>
 
-        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-          <table className="w-full text-left min-w-[700px]">
-            <thead className="bg-stone-100 text-stone-700">
-              <tr>
-                <th className="py-3 px-4 font-semibold">Image</th>
-                <th className="py-3 px-4 font-semibold">Name</th>
-                <th className="py-3 px-4 font-semibold">Price</th>
-                <th className="py-3 px-4 font-semibold">Category</th>
-                <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold">Actions</th>
-              </tr>
-            </thead>
+      <Dialog
+        open={!!selectedProduct}
+        onOpenChange={(open) => {
+          if (!open) setSelectedProduct(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Product Details</DialogTitle>
+            <DialogDescription>
+              Complete product information shown in the made-to-order catalog.
+            </DialogDescription>
+          </DialogHeader>
 
-            <tbody>
-              {filteredProducts.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="text-center py-8 text-stone-400"
+          {selectedProduct && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-[220px_1fr]">
+                <div className="flex h-56 items-center justify-center overflow-hidden rounded-2xl border border-border bg-background">
+                  {selectedProduct.imageUrl ? (
+                    <img
+                      src={selectedProduct.imageUrl}
+                      alt={selectedProduct.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Product</p>
+                    <h3 className="text-2xl font-bold text-foreground">
+                      {selectedProduct.name}
+                    </h3>
+                  </div>
+
+                  <span
+                    className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
+                      selectedProduct.status
+                    )}`}
                   >
-                    No products found.
-                  </td>
-                </tr>
-              )}
+                    {formatStatus(selectedProduct.status)}
+                  </span>
 
-              {filteredProducts.map((product) => (
-                <tr
-                  key={product.id}
-                  className="border-b last:border-b-0 hover:bg-stone-50 transition-colors"
+                  <DetailRow
+                    label="Price"
+                    value={formatMoney(selectedProduct.price)}
+                  />
+
+                  <DetailRow
+                    label="Category"
+                    value={selectedProduct.category || "Uncategorized"}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-foreground">
+                  Description
+                </p>
+                <p className="whitespace-pre-wrap rounded-xl border border-border bg-muted/40 p-4 text-sm leading-relaxed text-foreground">
+                  {selectedProduct.description || "No description provided."}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-border pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedProduct(null)}
                 >
-                  <td className="py-2 px-4">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-16 w-16 object-contain rounded border bg-white"
-                      />
-                    ) : (
-                      <span className="text-stone-300">No image</span>
-                    )}
-                  </td>
+                  Close
+                </Button>
 
-                  <td className="py-2 px-4 font-medium text-stone-800">
-                    {product.name}
-                  </td>
+                <Button
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    editProduct(selectedProduct);
+                  }}
+                >
+                  <Edit3 className="mr-1 h-4 w-4" />
+                  Edit Product
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
-                  <td className="py-2 px-4">{formatMoney(product.price)}</td>
+function SummaryCard({
+  label,
+  value,
+  icon,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  icon: ReactNode;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-5 shadow-sm ${
+        highlight
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-border bg-card text-foreground"
+      }`}
+    >
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary">
+        {icon}
+      </div>
 
-                  <td className="py-2 px-4">
-                    {product.category || "Uncategorized"}
-                  </td>
+      <p className="text-xs font-medium uppercase tracking-wide opacity-70">
+        {label}
+      </p>
 
-                  <td className="py-2 px-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        product.status === "available"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : product.status === "out-of-stock"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-stone-200 text-stone-500"
-                      }`}
-                    >
-                      {(product.status || "available")
-                        .replace(/-/g, " ")
-                        .replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </span>
-                  </td>
+      <h3 className="mt-1 text-2xl font-bold">{value}</h3>
+    </div>
+  );
+}
 
-                  <td className="py-2 px-4">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editProduct(product)}
-                        className="p-2 rounded hover:bg-emerald-50"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-5 h-5 text-emerald-600" />
-                      </button>
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-foreground">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
 
-                      <button
-                        type="button"
-                        onClick={() => deleteProduct(product.id)}
-                        disabled={deletingProductId === product.id}
-                        className="p-2 rounded hover:bg-red-50 disabled:opacity-50"
-                        title="Delete"
-                      >
-                        {deletingProductId === product.id ? (
-                          <X className="w-5 h-5 text-stone-400" />
-                        ) : (
-                          <Trash2 className="w-5 h-5 text-red-500" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background px-4 py-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   );
 }
