@@ -482,27 +482,32 @@ export function Services() {
                 </h3>
 
                 <p className="mt-4 leading-relaxed text-stone-600">
-                  Book an appointment so the business can organize schedules,
-                  avoid conflicts, and prepare for your requested landscaping
-                  consultation.
-                </p>
+  Submit an appointment request so the business can review your preferred
+  schedule, contact you for confirmation, and prepare for your landscaping
+  consultation.
+</p>
 
                 <ul className="my-7 space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-stone-700">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    Online appointment scheduling
-                  </li>
+  <li className="flex items-start gap-3 text-sm text-stone-700">
+    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+    Online appointment request scheduling
+  </li>
 
-                  <li className="flex items-start gap-3 text-sm text-stone-700">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    Three-day schedule conflict prevention
-                  </li>
+  <li className="flex items-start gap-3 text-sm text-stone-700">
+    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+    Available online every Monday, Wednesday, and Friday
+  </li>
 
-                  <li className="flex items-start gap-3 text-sm text-stone-700">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    Appointment status tracking
-                  </li>
-                </ul>
+  <li className="flex items-start gap-3 text-sm text-stone-700">
+    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+    Selected-date reservation to help prevent schedule conflicts
+  </li>
+
+  <li className="flex items-start gap-3 text-sm text-stone-700">
+    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+    Appointment status tracking after admin confirmation
+  </li>
+</ul>
 
                 <Button
                   type="button"
@@ -511,7 +516,7 @@ export function Services() {
                   className="h-12 w-full rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 sm:w-fit"
                 >
                   <Calendar className="mr-2 h-5 w-5" />
-                  Book Appointment
+                  Request Appointment
                 </Button>
               </div>
             </div>
