@@ -17,6 +17,7 @@ import {
   UserRound,
   ArrowLeft,
   ShieldCheck,
+  LogIn,
 } from "lucide-react";
 
 import { db } from "../../utils/firebase/config";
@@ -85,7 +86,9 @@ function normalizeAppointment(id: string, data: any): Appointment {
       data.status === "cancelled"
         ? data.status
         : "pending",
-    lockDates: Array.isArray(data.lockDates) ? data.lockDates : [],
+    lockDates: Array.isArray(data.lockDates)
+      ? data.lockDates.filter(isValidDateKey)
+      : [],
     createdAt: data.createdAt ?? null,
     updatedAt: data.updatedAt ?? null,
   };
@@ -168,14 +171,14 @@ export function LandscapingBooking() {
         );
 
         const activeLocksQuery = query(
-  collection(db, "appointmentLocks"),
-  where("status", "in", ["pending", "approved"])
-);
+          collection(db, "appointmentLocks"),
+          where("status", "in", ["pending", "approved"])
+        );
 
-const [appointmentsSnap, locksSnap] = await Promise.all([
-  getDocs(approvedAppointmentsQuery),
-  getDocs(activeLocksQuery),
-]);
+        const [appointmentsSnap, locksSnap] = await Promise.all([
+          getDocs(approvedAppointmentsQuery),
+          getDocs(activeLocksQuery),
+        ]);
 
         const approvedAppointments = appointmentsSnap.docs.map((document) =>
           normalizeAppointment(document.id, document.data())
@@ -183,12 +186,15 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
 
         const lockedDates = locksSnap.docs
           .map((lockDoc) => lockDoc.id)
-          .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date));
+          .filter(isValidDateKey);
 
         setAppointments(approvedAppointments);
         setBlockedDates(
           Array.from(
-            new Set([...lockedDates, ...getAllBlockedDates(approvedAppointments)])
+            new Set([
+              ...lockedDates,
+              ...getAllBlockedDates(approvedAppointments),
+            ])
           )
         );
       } catch (err) {
@@ -320,7 +326,9 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
       setStep("success");
     } catch (err) {
       console.error("Appointment booking error:", err);
-      setError("Selected date is no longer available. Please choose another date.");
+      setError(
+        "Selected date is no longer available. Please choose another date."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -328,7 +336,7 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-[#f9f7f4] px-4 py-10 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f4] px-4 py-10">
         <div className="rounded-2xl border border-stone-100 bg-white p-8 text-center text-stone-600 shadow-sm">
           Loading appointment form...
         </div>
@@ -338,9 +346,42 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
 
   if (!user || role !== "customer") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
-        <div className="max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
-          Please log in as a customer to book an appointment.
+      <div className="page-fade-in flex min-h-screen items-center justify-center bg-[#f9f7f4] px-4">
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
+
+        <div className="relative z-50 w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+            <LogIn className="h-7 w-7" />
+          </div>
+
+          <h2 className="text-xl font-bold text-stone-900">Login Required</h2>
+
+          <p className="mt-4 text-sm leading-relaxed text-stone-600">
+            Please log in as a customer first before booking a landscaping
+            appointment.
+          </p>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => navigate("/services")}
+              className="button-press rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/login", {
+                  state: { from: "/landscaping/booking" },
+                })
+              }
+              className="button-press rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Login
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -348,30 +389,32 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
 
   if (step === "success") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 py-10">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-stone-100 p-7 sm:p-10 text-center">
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-emerald-600" />
+      <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4 py-10">
+        <div className="w-full max-w-md rounded-3xl border border-stone-100 bg-white p-7 text-center shadow-sm sm:p-10">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle className="h-10 w-10 text-emerald-600" />
           </div>
 
-          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+          <h1 className="mb-2 text-2xl font-bold text-stone-900">
             Appointment Booked!
           </h1>
 
-          <p className="text-stone-500 mb-6">
+          <p className="mb-6 text-stone-500">
             Your landscaping consultation has been submitted and is now pending
             admin confirmation.
           </p>
 
-          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6 text-left space-y-2">
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">
+          <div className="mb-6 space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-700">
               Booking Details
             </p>
 
             <div className="flex justify-between gap-4 text-sm">
               <span className="text-stone-500">Date</span>
               <span className="text-right font-medium text-stone-800">
-                {selectedDate ? formatDisplayDate(toDateKey(selectedDate)) : "—"}
+                {selectedDate
+                  ? formatDisplayDate(toDateKey(selectedDate))
+                  : "—"}
               </span>
             </div>
 
@@ -429,7 +472,7 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
   }
 
   return (
-    <div className="min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
+    <div className="page-fade-in min-h-screen bg-[#f9f7f4] px-4 py-8 md:py-12">
       <div className="mx-auto max-w-6xl">
         <button
           type="button"
@@ -487,7 +530,8 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
                   Select Date
                 </h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  Dates that conflict with existing 3-day schedules are disabled.
+                  Dates that conflict with existing 3-day schedules are
+                  disabled.
                 </p>
 
                 <div className="mt-5 flex justify-center overflow-x-auto">
@@ -573,7 +617,9 @@ const [appointmentsSnap, locksSnap] = await Promise.all([
                     <div className="flex justify-between gap-4">
                       <span className="text-stone-500">Time</span>
                       <span className="font-medium text-stone-800">
-                        {selectedTime ? formatTime(selectedTime) : "Not selected"}
+                        {selectedTime
+                          ? formatTime(selectedTime)
+                          : "Not selected"}
                       </span>
                     </div>
                   </div>

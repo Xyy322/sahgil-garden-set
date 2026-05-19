@@ -9,6 +9,7 @@ import {
   Search,
   AlertCircle,
   Eye,
+  LogIn,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query } from "firebase/firestore";
@@ -34,6 +35,12 @@ type CatalogProduct = Product & {
   imageUrl?: string;
   createdAt?: unknown;
 };
+
+type GuestPrompt = {
+  title: string;
+  message: string;
+  from: string;
+} | null;
 
 function normalizeProduct(id: string, data: any): CatalogProduct {
   const status = data.status === "available" ? "available" : "unavailable";
@@ -73,7 +80,6 @@ export function Services() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsError, setProductsError] = useState("");
-  const [loginPrompt, setLoginPrompt] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllProducts, setShowAllProducts] = useState(false);
@@ -81,6 +87,8 @@ export function Services() {
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(
     null
   );
+
+  const [guestPrompt, setGuestPrompt] = useState<GuestPrompt>(null);
 
   useEffect(() => {
     const updateVisibleCount = () => {
@@ -152,15 +160,38 @@ export function Services() {
 
   const hasMoreProducts = filteredProducts.length > initialVisibleCount;
 
+  const openGuestPrompt = (title: string, message: string, from: string) => {
+    setGuestPrompt({
+      title,
+      message,
+      from,
+    });
+  };
+
+  const handleLoginFromPrompt = () => {
+    if (!guestPrompt) return;
+
+    const redirectPath = guestPrompt.from;
+
+    setGuestPrompt(null);
+    setSelectedProduct(null);
+
+    navigate("/login", {
+      state: { from: redirectPath },
+    });
+  };
+
   const handleAddToCart = (product: CatalogProduct) => {
     if (authLoading) return;
 
     if (!user || role !== "customer") {
-      setLoginPrompt(true);
+      openGuestPrompt(
+        "Login Required",
+        "Please log in as a customer first before adding products to your cart.",
+        "/services"
+      );
       return;
     }
-
-    if (product.status !== "available") return;
 
     addItem({
       id: product.id,
@@ -171,36 +202,23 @@ export function Services() {
     });
   };
 
+  const handleBookAppointment = () => {
+    if (authLoading) return;
+
+    if (!user || role !== "customer") {
+      openGuestPrompt(
+        "Login Required",
+        "Please log in as a customer first before booking a landscaping appointment.",
+        "/landscaping/booking"
+      );
+      return;
+    }
+
+    navigate("/landscaping/booking");
+  };
+
   return (
     <div className="page-fade-in min-h-screen bg-[#f9f7f4]">
-      {loginPrompt && (
-        <div className="fixed left-4 right-4 top-24 z-50 mx-auto flex max-w-xl flex-col gap-3 rounded-2xl bg-stone-900 px-5 py-4 text-white shadow-xl sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm font-medium">
-            Please log in as a customer to add items to your cart.
-          </span>
-
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                setLoginPrompt(false);
-                navigate("/login", { state: { from: "/services" } });
-              }}
-              className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
-            >
-              Log in
-            </button>
-
-            <button
-              onClick={() => setLoginPrompt(false)}
-              className="text-sm text-stone-400 hover:text-white"
-              aria-label="Close login prompt"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       <section className="relative flex min-h-[390px] w-full items-center justify-center overflow-hidden bg-stone-900 px-4 py-20 text-center md:min-h-[500px]">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-stone-900 to-emerald-900/30" />
 
@@ -372,6 +390,7 @@ export function Services() {
                           </Button>
 
                           <Button
+                            type="button"
                             onClick={() => handleAddToCart(product)}
                             disabled={authLoading}
                             className="h-11 rounded-xl bg-stone-900 font-semibold text-white hover:bg-stone-800 disabled:opacity-60"
@@ -487,8 +506,9 @@ export function Services() {
 
                 <Button
                   type="button"
-                  onClick={() => navigate("/landscaping/booking")}
-                  className="h-12 w-full rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 sm:w-fit"
+                  onClick={handleBookAppointment}
+                  disabled={authLoading}
+                  className="h-12 w-full rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 sm:w-fit"
                 >
                   <Calendar className="mr-2 h-5 w-5" />
                   Book Appointment
@@ -570,6 +590,47 @@ export function Services() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!guestPrompt}
+        onOpenChange={(open) => {
+          if (!open) setGuestPrompt(null);
+        }}
+      >
+        <DialogContent className="max-w-sm rounded-3xl text-center">
+          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+            <LogIn className="h-7 w-7" />
+          </div>
+
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-bold text-stone-900">
+              {guestPrompt?.title}
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm leading-relaxed text-stone-600">
+              {guestPrompt?.message}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 flex flex-col gap-3">
+            <Button
+              type="button"
+              onClick={handleLoginFromPrompt}
+              className="h-11 rounded-xl bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+            >
+              Log in to Continue
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setGuestPrompt(null)}
+              className="h-11 rounded-xl"
+            >
+              Cancel
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
