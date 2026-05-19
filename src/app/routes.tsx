@@ -17,6 +17,7 @@ import { Checkout } from "./pages/Checkout";
 import { LandscapingBooking } from "./pages/LandscapingBooking";
 import { Profile } from "./pages/Profile";
 import { ProfileEdit } from "./pages/ProfileEdit";
+import { AdminReports } from "./pages/AdminReports";
 import {
   RoleProtectedRoute,
   PublicOnlyRoute,
@@ -125,6 +126,7 @@ export const router = createBrowserRouter([
         { path: "orders", element: <AdminOrders /> },
         { path: "appointments", element: <AdminAppointments /> },
         { path: "inquiries", element: <AdminInquiries /> },
+        { path: "reports", element: <AdminReports /> },
       ],
     },
 
