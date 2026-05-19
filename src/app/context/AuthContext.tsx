@@ -18,6 +18,7 @@ export interface UserProfile {
   role: AppRole;
   phoneNumber?: string;
   address?: string;
+  username?: string;
   hasPassword?: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -74,17 +75,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setProfile({
+      const nextProfile: UserProfile = {
         uid: firebaseUser.uid,
-        email:
-          typeof data.email === "string"
-            ? data.email
-            : firebaseUser.email ?? "",
-        fullName: typeof data.fullName === "string" ? data.fullName : "",
-        role: data.role,
-      });
 
-      setRole(data.role);
+        email:
+          typeof data.email === "string" && data.email.trim()
+            ? data.email
+            : firebaseUser.email || "",
+
+        fullName:
+          typeof data.fullName === "string" && data.fullName.trim()
+            ? data.fullName
+            : firebaseUser.displayName || "",
+
+        role: data.role,
+
+        phoneNumber:
+          typeof data.phoneNumber === "string" ? data.phoneNumber : "",
+
+        address: typeof data.address === "string" ? data.address : "",
+
+        username: typeof data.username === "string" ? data.username : "",
+
+        hasPassword: data.hasPassword === true,
+
+        createdAt: data.createdAt ?? null,
+        updatedAt: data.updatedAt ?? null,
+      };
+
+      setProfile(nextProfile);
+      setRole(nextProfile.role);
       setProfileError("");
     } catch (error) {
       console.error("Failed to load user profile:", error);
@@ -94,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-    const refreshProfile = async () => {
+  const refreshProfile = async () => {
     await loadProfile(auth.currentUser);
   };
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent } from "./ui/sheet";
+import { NotificationBell } from "./notifications/NotificationBell";
 
 type AdminNavItem = {
   path: string;
@@ -25,7 +26,7 @@ export function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
 
   const handleLogout = async () => {
     await logout();
@@ -157,6 +158,11 @@ export function AdminLayout() {
 
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+              {role === "admin" && (
+  <div className="ml-auto">
+    <NotificationBell userId="admin" role="admin" />
+  </div>
+)}
               <input
                 type="text"
                 placeholder="Quick search..."

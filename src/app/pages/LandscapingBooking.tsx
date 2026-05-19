@@ -287,6 +287,14 @@ export function LandscapingBooking() {
         statusRefId: appointmentRef.id,
       });
 
+      await createNotification({
+  userId: "admin",
+  title: "New appointment request",
+  message: `${cleanName} booked an appointment on ${dateKey} at ${selectedTime}.`,
+  type: "appointment",
+  statusRefId: appointmentRef.id,
+});
+
       setBlockedDates((prev) => Array.from(new Set([...prev, ...lockDates])));
       setStep("success");
     } catch (err) {

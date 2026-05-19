@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 import { db } from "../../utils/firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { createNotification } from "../../utils/createNotification";  
 
 export function Contact() {
   const [formData, setFormData] = useState({
@@ -52,7 +53,7 @@ export function Contact() {
 
       const { firstName, lastName } = splitFullName(cleanName);
 
-      await addDoc(collection(db, "inquiries"), {
+      const inquiryRef = await addDoc(collection(db, "inquiries"), {
         userId: user.uid,
 
         firstName,
@@ -69,6 +70,15 @@ export function Contact() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      await createNotification({
+  userId: "admin",
+  title: "New inquiry submitted",
+  message: `${cleanName} submitted a new inquiry.`,
+  type: "inquiry",
+  statusRefId: inquiryRef.id,
+});
+
 
       setSubmitted(true);
 

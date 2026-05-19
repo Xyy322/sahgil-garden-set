@@ -6,31 +6,32 @@ import { Button } from "../ui/button";
 
 interface NotificationBellProps {
   userId: string;
+  role?: "admin" | "customer" | null;
 }
 
-export function NotificationBell({ userId }: NotificationBellProps) {
+export function NotificationBell({ userId, role = "customer" }: NotificationBellProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    loading,
-  } = useNotifications(userId);
+  const { notifications, unreadCount, markAsRead, markAllAsRead, loading } =
+    useNotifications(userId);
 
   const latestNotifications = useMemo(
     () => notifications.slice(0, 10),
     [notifications]
   );
 
-  const resolvePath = (type: string, statusRefId?: string) => {
-    const query = statusRefId ? `?ref=${encodeURIComponent(statusRefId)}` : "";
+  const resolvePath = (type: string) => {
+    if (role === "admin") {
+      if (type === "order") return "/dashboard/admin/orders";
+      if (type === "appointment") return "/dashboard/admin/appointments";
+      if (type === "inquiry") return "/dashboard/admin/inquiries";
+      return "/dashboard/admin";
+    }
 
-    if (type === "order") return `/dashboard/customer${query}`;
-    if (type === "appointment") return `/dashboard/customer${query}`;
-    if (type === "inquiry") return `/dashboard/customer${query}`;
+    if (type === "order") return "/dashboard/customer";
+    if (type === "appointment") return "/dashboard/customer";
+    if (type === "inquiry") return "/dashboard/customer/inquiries";
 
     return "/dashboard/customer";
   };
@@ -40,22 +41,11 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     type: string,
     statusRefId?: string
   ) => {
-    try {
-      await markAsRead(id);
-    } catch (error) {
-      console.error("Failed to mark notification as read:", error);
-    } finally {
-      setOpen(false);
-      navigate(resolvePath(type, statusRefId));
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await markAllAsRead();
-    } catch (error) {
-      console.error("Failed to mark all notifications as read:", error);
-    }
+    await markAsRead(id);
+    setOpen(false);
+    navigate(resolvePath(type), {
+      state: statusRefId ? { focusId: statusRefId } : undefined,
+    });
   };
 
   return (
@@ -86,8 +76,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             <Button
               size="sm"
               variant="outline"
-              onClick={handleMarkAllAsRead}
-              disabled={loading || unreadCount === 0}
+              onClick={markAllAsRead}
               className="h-8 text-xs"
               aria-label="Mark all as read"
             >
@@ -105,39 +94,34 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 No notifications yet.
               </div>
             ) : (
-              latestNotifications.map((notification) => {
-                const targetId =
-                  notification.statusRefId || notification.relatedId || "";
+              latestNotifications.map((notification) => (
+                <button
+                  key={notification.id}
+                  onClick={() =>
+                    handleNotificationClick(
+                      notification.id,
+                      notification.type,
+                      notification.statusRefId
+                    )
+                  }
+                  className={`w-full text-left px-4 py-3 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-none ${
+                    notification.read
+                      ? "bg-white text-stone-700"
+                      : "bg-emerald-50/60 text-emerald-900 font-semibold border-l-4 border-emerald-400"
+                  }`}
+                  aria-label={notification.title || "Notification"}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold truncate">
+                      {notification.title || "Notification"}
+                    </span>
 
-                return (
-                  <button
-                    key={notification.id}
-                    onClick={() =>
-                      handleNotificationClick(
-                        notification.id,
-                        notification.type,
-                        targetId
-                      )
-                    }
-                    className={`w-full text-left px-4 py-3 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-none ${
-                      notification.read
-                        ? "bg-white text-stone-700"
-                        : "bg-emerald-50/60 text-emerald-900 font-semibold border-l-4 border-emerald-400"
-                    }`}
-                    aria-label={notification.title || "Notification"}
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-semibold truncate">
-                        {notification.title || "Notification"}
-                      </span>
-
-                      <span className="text-xs text-stone-600 mt-0.5 truncate">
-                        {notification.message || "You have a new update."}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
+                    <span className="text-xs text-stone-600 mt-0.5 line-clamp-2">
+                      {notification.message || "You have a new update."}
+                    </span>
+                  </div>
+                </button>
+              ))
             )}
           </div>
         </div>
